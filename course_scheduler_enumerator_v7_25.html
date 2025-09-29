@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Course Scheduler • Enumerator</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; }
+  h2 { margin: 8px 0 12px 0; }
+  .controls { margin: 8px 0 12px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .controls.wrap { flex-wrap: wrap; }
+  .sched { margin: 18px 0; width: 880px; }
+  .board { position: relative; width: 880px; height: 740px; border: 1px solid #999; }
+  .gutter { position: absolute; left: 0; top: 40px; width: 80px; bottom: 0; border-right:1px solid #ccc; background:#fafafa; }
+  .col { position: absolute; top: 40px; bottom: 0; width: 160px; border-left:1px solid #eee; }
+  .head { position: absolute; top: 0; height: 40px; line-height: 40px; text-align:center; border-right:1px solid #ccc; background:#eee; font-weight:600; }
+  .hour { position: absolute; left: 80px; right: 0; height: 1px; background: #ddd; }
+  .hourlab { position: absolute; left: 0; width: 80px; height: 1px; font-size: 12px; color:#777; text-align:right; padding-right:6px; }
+  .block { position: absolute; color: #fff; font-weight: 700; border-radius: 6px; padding: 6px; font-size: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.2); line-height:1.2; }
+  .blk-title { font-weight: 800; }
+  .blk-sub { font-weight: 600; font-size: 11px; opacity: .95; }
+  .tba { margin-top: 6px; font-size: 12px; color: #333; }
+  input[type="number"] { width: 60px; }
+  .meta { font-size: 12px; color:#555; margin: 4px 0 8px 0; }
+  .list { font-size: 13px; margin: 14px 0 0 0; padding-left: 18px; } /* extra space after board */
+  .list li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<h2>Course Scheduler • Enumerator</h2>
+
+<!-- Row 1 -->
+<div class="controls wrap" id="controlsRow1">
+  <label>CSV <input type="file" id="csvFile" accept=".csv"></label>
+  <label>Start <input type="number" id="filterStart" value="8" min="0" max="23"></label>
+  <label>End <input type="number" id="filterEnd" value="19" min="1" max="24"></label>
+  <label><input type="checkbox" id="avoidLunch"> 점심 회피(12:00–13:00)</label>
+  <label>Max schedules <input type="number" id="maxShow" value="5" min="1" max="200"></label>
+  <label><input type="checkbox" id="showProf" checked> 교수</label>
+  <label><input type="checkbox" id="showClassNbr" checked> class_nbr</label>
+  <label><input type="checkbox" id="showSBC" checked> SBC</label>
+  <button id="refreshBtn" type="button">Refresh</button>
+  <span id="status" class="meta"></span>
+</div>
+
+<!-- Row 2: credit-limit controls moved down -->
+<div class="controls wrap" id="controlsRow2">
+  <label><input type="checkbox" id="creditEnable"> 학점 제한</label>
+  <label>Min <input type="number" id="minCred" value="0" min="0" max="30"></label>
+  <label>Max <input type="number" id="maxCred" value="30" min="0" max="30"></label>
+</div>
+
+<div id="output"></div>
+
+<script>
+"use strict";
+
+const DAYS = ["MO","TU","WE","TH","FR"];
+const COLORS = ["#4da6ff","#5cb85c","#f0ad4e","#d9534f","#9370db","#20c997","#ff6666","#009688","#795548"];
+const PX_PER_MIN = 1;
+const START_MIN = 8*60;
+const END_MIN   = 19*60;
+
+function timeToMin(str) {
+  if (!str) return null;
+  const s = String(str).trim().toUpperCase();
+  const m = s.match(/^(\d{1,2})(?::(\d{2})(?::\d{2})?)?\s*(AM|PM)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1],10);
+  let mm = parseInt(m[2]||"0",10);
+  const ap = m[3]||"";
+  if (ap === "PM" && h !== 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h*60 + mm;
+}
+
+function minToHHMM(min) {
+  if (min==null) return "";
+  const h = Math.floor(min/60);
+  const m = min%60;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+
+function toY(min){ return 40 + (min - START_MIN) * PX_PER_MIN; }
+
+function renderBoard(sel) {
+  const W_GUTTER = 80, COL_W = 160, HEAD_H = 40;
+  const width = W_GUTTER + DAYS.length * COL_W;
+  const height = (END_MIN - START_MIN) * PX_PER_MIN + HEAD_H;
+  let html = `<div class="board" style="width:${width}px;height:${height}px">`;
+  html += `<div class="head" style="left:0px;width:${W_GUTTER}px">시간</div>`;
+  for (let i=0;i<DAYS.length;i++) {
+    const x = W_GUTTER + i*COL_W;
+    html += `<div class="head" style="left:${x}px;width:${COL_W}px;border-left:1px solid #ccc">${DAYS[i]}</div>`;
+    html += `<div class="col" style="left:${x}px;width:${COL_W}px"></div>`;
+  }
+  html += `<div class="gutter"></div>`;
+  for (let m = START_MIN; m <= END_MIN; m += 60) {
+    const y = toY(m);
+    html += `<div class="hour" style="top:${y}px"></div>`;
+    const hh = Math.floor(m/60);
+    html += `<div class="hourlab" style="top:${y}px">${String(hh).padStart(2,"0")}:00</div>`;
+  }
+  const colmap = {}; let ci=0;
+  sel.forEach(c => { if(!colmap[c.code]) colmap[c.code] = COLORS[(ci++)%COLORS.length]; });
+  sel.forEach(c => {
+    if (c.start==null || c.end==null) return;
+    c.daylist.forEach(d => {
+      const di = DAYS.indexOf(d);
+      if (di < 0) return;
+      const left = W_GUTTER + di * COL_W + 4;
+      const top  = 40 + (c.start - START_MIN) * PX_PER_MIN;
+      const height = Math.max(12, (c.end - c.start) * PX_PER_MIN);
+      const width = COL_W - 8;
+      const bg = colmap[c.code];
+
+      const showProf = document.getElementById("showProf").checked;
+      const showClassNbr = document.getElementById("showClassNbr").checked;
+      const showSBC = document.getElementById("showSBC").checked;
+      const lines = [];
+      if (showProf && c.prof) lines.push(c.prof);
+      if (showClassNbr && c.class_nbr!=null && c.class_nbr!=="") lines.push("#"+c.class_nbr);
+      if (showSBC && c.sbc) lines.push("SBC:"+c.sbc);
+      const sub = lines.length ? `<div class="blk-sub">${lines.join(" · ")}</div>` : "";
+
+      const label = `<div class="blk-title">${c.code}</div>${sub}`;
+      html += `<div class="block" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${bg}">${label}</div>`;
+    });
+  });
+  html += `</div>`;
+  const tba = sel.filter(c => c.start==null || c.end==null || !c.daylist || c.daylist.length===0);
+  if (tba.length) {
+    const s = tba.map(c => `${c.code}(${c.st_raw||"-"}-${c.en_raw||"-"})`).join(", ");
+    html += `<div class="tba"><b>TBA:</b> ${s}</div>`;
+  }
+  return html;
+}
+
+function parseCSV(text) {
+  text = String(text);
+  text = text.split("\r\n").join("\n").split("\r").join("\n");
+  const rows = [];
+  let field = "", row = [], inQuotes = false;
+  for (let i=0;i<text.length;i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        const nx = text[i+1];
+        if (nx === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else field += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ",") { row.push(field); field=""; }
+      else if (ch === "\n") { row.push(field); rows.push(row); row=[]; field=""; }
+      else field += ch;
+    }
+  }
+  row.push(field); rows.push(row);
+  const headers = (rows.shift()||[]).map(h => String(h).trim());
+  return rows.filter(r => r.some(x => x && String(x).trim().length)).map(cols => {
+    const o = {};
+    for (let i=0;i<headers.length;i++) o[headers[i]] = (cols[i]!==undefined ? String(cols[i]).trim() : "");
+    return o;
+  });
+}
+
+function buildCourses(rows) {
+  const out = [];
+  for (const r of rows) {
+    const code = r.course_code || "";
+    if (!/^[A-Z]{2,4}\d{3}\.[A-Z0-9]+$/.test(code)) continue;
+    const days = String(r.days||"").split(",").map(x => x.trim()).filter(x => x && x!=="-");
+    const daylist = days.filter(d => DAYS.includes(d));
+    const st_raw = r.start_time || "";
+    const en_raw = r.end_time || "";
+    const st = timeToMin(st_raw);
+    const en = timeToMin(en_raw);
+    const cred = parseFloat(r.credits||r.credit||r.Credits||0) || 0;
+    const prof = r.professor || r.instructor || r.instructor_name || r.faculty || r.prof || "";
+    const class_nbr = r.class_nbr || r.class || r.classnumber || r.classNbr || "";
+    const sbc = r.sbc || r.SBC || "";
+    out.push({ code, base: code.split(".")[0], daylist, start: st, end: en, st_raw, en_raw, cred, prof, class_nbr, sbc });
+  }
+  return out;
+}
+
+function conflict(slots, seg) {
+  for (const s of slots) {
+    if (s.day !== seg.day) continue;
+    if (seg.start < s.end && seg.end > s.start) return true;
+  }
+  return false;
+}
+
+let filterStart = START_MIN;
+let filterEnd   = END_MIN;
+function setTimeFilter(startHour, endHour) { filterStart = startHour * 60; filterEnd = endHour * 60; }
+function overlapsLunch(c) { if (!c.start || !c.end) return false; const ls = 12*60, le = 13*60; return c.start < le && c.end > ls; }
+
+function isCoupledLecture(c){ return /\.\d+$/.test(c.code) && !/\.L/.test(c.code); }
+function findLabForLecture(courses, lecture){ return courses.find(x=> x.base===lecture.base && /\.L/.test(x.code)); }
+
+function enumerateSchedules(courses, maxOut) {
+  const items = courses.slice().sort((a,b)=> a.code.localeCompare(b.code));
+  const res = [];
+  const seen = new Set();
+  const slotsInit = [];
+
+  function sigOf(sel){
+    const parts = sel.map(c => {
+      const d = (c.daylist||[]).join("");
+      const st = c.start??-1, en = c.end??-1;
+      return `${c.code}|${d}|${st}|${en}`;
+    }).sort();
+    return parts.join("||");
+  }
+
+  function dfs(i, sel, slots, sumCred) {
+    if (res.length >= maxOut) return;
+    if (i >= items.length) {
+      if (sel.length > 0) {
+        const sig = sigOf(sel);
+        if (!seen.has(sig)) {
+          seen.add(sig);
+          const minOn = document.getElementById("creditEnable").checked;
+          const minC = parseInt(document.getElementById("minCred").value,10)||0;
+          const maxC = parseInt(document.getElementById("maxCred").value,10)||999;
+          if (!minOn || (sumCred>=minC && sumCred<=maxC)) {
+            res.push({ sel: sel.slice(), total: sumCred });
+          }
+        }
+      }
+      return;
+    }
+    const it = items[i];
+
+    // Skip branch
+    dfs(i+1, sel, slots, sumCred);
+    if (res.length >= maxOut) return;
+
+    // Window and lunch
+    if (it.start!=null && it.end!=null) {
+      if (it.start < filterStart || it.end > filterEnd) { return; }
+      if (document.getElementById("avoidLunch").checked && overlapsLunch(it)) { return; }
+    }
+    // Conflict for the item
+    let ok = true;
+    if (it.start!=null && it.end!=null) {
+      for (const d of it.daylist) {
+        if (conflict(slots, {day:d, start:it.start, end:it.end})) { ok=false; break; }
+      }
+    }
+    if (!ok) return;
+
+    // Bundle lecture+lab
+    let bundle = [it];
+    if (isCoupledLecture(it)) {
+      const lab = findLabForLecture(courses, it);
+      if (lab && !sel.includes(lab)) bundle.push(lab);
+    }
+
+    // Check conflicts for bundle and push slots
+    const newSlots = slots.slice();
+    let valid = true;
+    for (const c of bundle) {
+      if (c.start!=null && c.end!=null) {
+        for (const d of c.daylist) { if (conflict(newSlots, {day:d, start:c.start, end:c.end})) { valid=false; break; } }
+        if (!valid) break;
+        for (const d of c.daylist) newSlots.push({day:d, start:c.start, end:c.end});
+      }
+    }
+    if (!valid) return;
+
+    const newSel = sel.concat(bundle.filter(x=>!sel.includes(x)));
+    const newCred = sumCred + bundle.reduce((s,c)=> s+(c.cred||0),0);
+    dfs(i+1, newSel, newSlots, newCred);
+  }
+
+  dfs(0, [], slotsInit, 0);
+  return res;
+}
+
+function formatCourseLine(c){
+  const days = (c.daylist && c.daylist.length) ? c.daylist.join("/") : "TBA";
+  const time = (c.start!=null && c.end!=null) ? (minToHHMM(c.start)+"–"+minToHHMM(c.end)) : ( (c.st_raw||"-")+"–"+(c.en_raw||"-") );
+  const cred = (c.cred||0);
+  const showProf = document.getElementById("showProf").checked;
+  const showClassNbr = document.getElementById("showClassNbr").checked;
+  const showSBC = document.getElementById("showSBC").checked;
+  const extras = [];
+  if (showProf && c.prof) extras.push(c.prof);
+  if (showClassNbr && c.class_nbr) extras.push("#"+c.class_nbr);
+  if (showSBC && c.sbc) extras.push("SBC:"+c.sbc);
+  const extraTxt = extras.length? " | "+extras.join(" · ") : "";
+  return `${c.code} | ${days} ${time} | ${cred}학점${extraTxt}`;
+}
+
+function renderResults(results) {
+  const out = [];
+  results.forEach((r, idx) => {
+    out.push(`<div class="sched"><div><strong>스케줄 ${idx+1}</strong> | 총학점 ${r.total}</div>`);
+    out.push(renderBoard(r.sel));
+    const lines = r.sel.map(formatCourseLine);
+    if (lines.length){
+      out.push(`<ul class="list">` + lines.map(x=>`<li>${x}</li>`).join("") + `</ul>`);
+    }
+    out.push(`</div>`);
+  });
+  document.getElementById('output').innerHTML = out.join('');
+}
+
+function applyAndEnumerate(allCourses) {
+  const fs = parseInt(document.getElementById("filterStart").value,10);
+  const fe = parseInt(document.getElementById("filterEnd").value,10);
+  setTimeFilter(fs, fe);
+  const maxShow = parseInt(document.getElementById("maxShow").value,10) || 5;
+  const results = enumerateSchedules(allCourses, maxShow);
+  document.getElementById("status").textContent = `생성: ${results.length}개 (최대 ${maxShow})`;
+  if (results.length === 0) {
+    document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+  } else {
+    renderResults(results);
+  }
+}
+
+(function init(){
+  document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+  const fileInput = document.getElementById("csvFile");
+  let allCourses = [];
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) { document.getElementById("status").textContent = "파일 선택 취소"; return; }
+    const fr = new FileReader();
+    fr.onload = e => {
+      try {
+        const rows = parseCSV(e.target.result);
+        allCourses = buildCourses(rows);
+        document.getElementById("status").textContent = `로드됨: ${allCourses.length}개 섹션`;
+        applyAndEnumerate(allCourses);
+      } catch(err) {
+        document.getElementById("status").textContent = "CSV 파싱 실패";
+        document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+      }
+    };
+    fr.readAsText(f, "utf-8");
+  });
+
+  // Manual refresh only
+  document.getElementById("refreshBtn").addEventListener("click", () => applyAndEnumerate(allCourses));
+})();
+
+</script>
+</body>
+</html>
