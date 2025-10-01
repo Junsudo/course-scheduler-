@@ -5,31 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Course Scheduler • Enumerator</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 16px; }
-  h2 { margin: 8px 0 12px 0; }
-  .controls { margin: 8px 0 12px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .controls.wrap { flex-wrap: wrap; }
-  .sched { margin: 18px 0; width: 880px; }
-  .board { position: relative; width: 880px; height: 700px; border: 1px solid #999; }
-  .gutter { position: absolute; left: 0; top: 40px; width: 80px; bottom: 0; border-right:1px solid #ccc; background:#fafafa; }
-  .col { position: absolute; top: 40px; bottom: 0; width: 160px; border-left:1px solid #eee; }
-  .head { position: absolute; top: 0; height: 40px; line-height: 40px; text-align:center; border-right:1px solid #ccc; background:#eee; font-weight:600; }
-  .hour { position: absolute; left: 80px; right: 0; height: 1px; background: #ddd; }
-  .hourlab { position: absolute; left: 0; width: 80px; height: 1px; font-size: 12px; color:#777; text-align:right; padding-right:6px; }
-  .block { position: absolute; color: #fff; font-weight: 700; border-radius: 6px; padding: 6px; font-size: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.2); line-height:1.2; }
-  .blk-title { font-weight: 800; }
-  .blk-sub { font-weight: 600; font-size: 11px; opacity: .95; }
-  .tba { margin-top: 6px; font-size: 12px; color: #333; }
-  input[type="number"] { width: 60px; }
-  .meta { font-size: 12px; color:#555; margin: 4px 0 8px 0; }
-  .list { font-size: 13px; margin: 14px 0 0 0; padding-left: 18px; } /* extra space after board */
-  .list li { margin: 2px 0; }
+  body{font-family:system-ui,sans-serif;margin:16px}
+  h2{margin:8px 0 12px}
+  .controls{margin:8px 0 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .controls.wrap{flex-wrap:wrap}
+  .sched{margin:18px 0;width:880px}
+  .board{position:relative;width:880px;height:700px;border:1px solid #999}
+  .gutter{position:absolute;left:0;top:40px;width:80px;bottom:0;border-right:1px solid #ccc;background:#fafafa}
+  .col{position:absolute;top:40px;bottom:0;width:160px;border-left:1px solid #eee}
+  .head{position:absolute;top:0;height:40px;line-height:40px;text-align:center;border-right:1px solid #ccc;background:#eee;font-weight:600}
+  .hour{position:absolute;left:80px;right:0;height:1px;background:#ddd}
+  .hourlab{position:absolute;left:0;width:80px;height:1px;font-size:12px;color:#777;text-align:right;padding-right:6px}
+  .block{position:absolute;color:#fff;font-weight:700;border-radius:6px;padding:6px;font-size:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2);line-height:1.2}
+  .blk-title{font-weight:800}
+  .blk-sub{font-weight:600;font-size:11px;opacity:.95}
+  .tba{margin-top:6px;font-size:12px;color:#333}
+  input[type="number"]{width:60px}
+  .meta{font-size:12px;color:#555;margin:4px 0 8px}
+  .list{font-size:13px;margin:14px 0 0;padding-left:18px}
+  .list li{margin:2px 0}
+  /* 커스텀 tri-state 체크박스 */
+  #sbcFilters label.sbcLab, #subjFilters label.sbcLab{position:relative;padding-left:22px;cursor:pointer;user-select:none}
+  #sbcFilters label.sbcLab::before, #subjFilters label.sbcLab::before{content:"";position:absolute;left:0;top:2px;width:16px;height:16px;border:1px solid #666;border-radius:3px;background:#fff}
+  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after, #subjFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after{content:"✓";position:absolute;left:2px;top:-1px;font-size:16px;line-height:16px}
+  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after, #subjFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after{content:"–";position:absolute;left:5px;top:-1px;font-size:18px;line-height:16px}
+  #sbcFilters label.sbcLab:has(input.sbcTri:focus), #subjFilters label.sbcLab:has(input.sbcTri:focus){outline:2px solid #2684ff;outline-offset:2px;border-radius:4px}
+  #sbcFilters input.sbcTri, #subjFilters input.sbcTri{position:absolute;left:0;top:2px;width:16px;height:16px;opacity:0;margin:0;padding:0}
+
 </style>
 </head>
 <body>
 <h2>Course Scheduler • Enumerator</h2>
-
-<!-- Row 1 -->
+// Row 1: Main controls
 <div class="controls wrap" id="controlsRow1">
   <label>CSV <input type="file" id="csvFile" accept=".csv"></label>
   <label>Start <input type="number" id="filterStart" value="8" min="0" max="23"></label>
@@ -42,313 +49,602 @@
   <button id="refreshBtn" type="button">Refresh</button>
   <span id="status" class="meta"></span>
 </div>
-
-<!-- Row 2: credit-limit controls moved down -->
+// Row 2: Credit filters
 <div class="controls wrap" id="controlsRow2">
   <label><input type="checkbox" id="creditEnable" checked> 학점 제한</label>
   <label>Min <input type="number" id="minCred" value="12" min="12" max="30"></label>
   <label>Max <input type="number" id="maxCred" value="18" min="12" max="24"></label>
 </div>
-
+// Row 3: SBC filters
+<div class="controls wrap" id="sbcFilters"></div>
+// Row 4: Subject filters
+<div class="controls wrap" id="subjFilters"></div>
+// Output
 <div id="output"></div>
 
 <script>
 "use strict";
+// === 상수 및 전역 변수 ===
+const DAYS=["MO","TU","WE","TH","FR"];
+const COLORS=["#4da6ff","#5cb85c","#f0ad4e","#d9534f","#9370db","#20c997","#ff6666","#009688","#795548"];
+const PX_PER_MIN=1.0;
+const START_MIN=9*60;
+const END_MIN=1130;
+// 전체 과목 데이터
+let allCourses = [];
+// === 시간 마스크 유틸 (5분 단위) ===
+const QUANT = 5; // 분 단위
+const QSTART = START_MIN;                 // 보드 시작 분
+const QEND   = END_MIN;                   // 보드 끝 분
+const QLEN   = Math.ceil((QEND - QSTART)/QUANT);
+const DAY_INDEX = { MO:0, TU:1, WE:2, TH:3, FR:4 };
+// === 탐색 예산(ms) ===
+const ENUM_BUDGET_MS = 150; // 기본 예산
+let _enumDeadline = 0;
 
-const DAYS = ["MO","TU","WE","TH","FR"];
-const COLORS = ["#4da6ff","#5cb85c","#f0ad4e","#d9534f","#9370db","#20c997","#ff6666","#009688","#795548"];
-const PX_PER_MIN = 1.0; // 1 minute = 1 pixel
-const START_MIN = 9*60; // 08:00
-const END_MIN   = 1130; // 18:50
-
-function timeToMin(str) {
-  if (!str) return null;
-  const s = String(str).trim().toUpperCase();
-  const m = s.match(/^(\d{1,2})(?::(\d{2})(?::\d{2})?)?\s*(AM|PM)?$/);
-  if (!m) return null;
-  let h = parseInt(m[1],10);
-  let mm = parseInt(m[2]||"0",10);
-  const ap = m[3]||"";
-  if (ap === "PM" && h !== 12) h += 12;
-  if (ap === "AM" && h === 12) h = 0;
-  return h*60 + mm;
+// [startMin, endMin) 구간의 BigInt 마스크 반환
+function segMask(startMin, endMin){
+  if (startMin==null || endMin==null) return 0n;
+  let s = Math.max(startMin, QSTART), e = Math.min(endMin, QEND);
+  if (e <= s) return 0n;
+  const a = Math.floor((s - QSTART)/QUANT);
+  const b = Math.ceil((e - QSTART)/QUANT); // [a, b)
+  // b-a 비트 세트
+  const len = BigInt(b - a);
+  const bits = (1n << len) - 1n;
+  return bits << BigInt(a);
 }
-
-function minToHHMM(min) {
-  if (min==null) return "";
-  const h = Math.floor(min/60);
-  const m = min%60;
+// 단일 과목의 5일 요일별 마스크 배열 반환
+function courseDayMasks(c){
+  // 5일 요일별 BigInt 마스크
+  const masks = [0n,0n,0n,0n,0n]; // MO,TU,WE,TH,FR
+  if (!c.daylist || c.start==null || c.end==null) return masks; // TBA
+  const m = segMask(c.start, c.end); // 시간 마스크
+  for (const d of c.daylist){ // MO,TU,WE,TH,FR
+    const di = DAY_INDEX[d]; // 해당 요일 인덱스
+    if (di>=0) masks[di] |= m;// 비트 OR
+  }
+  return masks; // 5일치 마스크 배열
+}
+// 시간 문자열 → 분 단위 변환
+function timeToMin(str){
+  if(!str) return null;
+  const s=String(str).trim().toUpperCase();
+  const m=s.match(/^(\d{1,2})(?::(\d{2})(?::\d{2})?)?\s*(AM|PM)?$/);
+  if(!m) return null;
+  let h=parseInt(m[1],10);
+  let mm=parseInt(m[2]||"0",10);
+  const ap=m[3]||"";
+  if(ap==="PM"&&h!==12) h+=12;
+  if(ap==="AM"&&h===12) h=0;
+  return h*60+mm;
+}
+// HH:MM 형식 변환
+function minToHHMM(min){
+  if(min==null) return "";
+  const h=Math.floor(min/60), m=min%60;
   return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
 }
+// Y 좌표 변환
+function toY(min){ return 40+(min-START_MIN)*PX_PER_MIN; }
+// tri-state 체크박스 상태 설정
+function setTriState(cb, state){
+  cb.dataset.state = state;
+  if (state === "ignore") { cb.checked = false; cb.indeterminate = false; }
+  else if (state === "must") { cb.checked = true; cb.indeterminate = false; }
+  else if (state === "exclude") { cb.checked = false; cb.indeterminate = true; }
+}
 
-function toY(min){ return 40 + (min - START_MIN) * PX_PER_MIN; }
+function cycleTri(cb){
+  const s = cb.dataset.state || "ignore";
+  if (s === "ignore") setTriState(cb, "must");
+  else if (s === "must") setTriState(cb, "exclude");
+  else setTriState(cb, "ignore");
+  triggerRefresh(); // 버튼 클릭 호출 제거
+}
 
-function renderBoard(sel) {
-  const W_GUTTER = 80, COL_W = 110, HEAD_H = 40;
-  const width = W_GUTTER + DAYS.length * COL_W;
-  const height = (END_MIN - START_MIN) * PX_PER_MIN + HEAD_H;
-  let html = `<div class="board" style="width:${width}px;height:${height}px">`;
-  html += `<div class="head" style="left:0px;width:${W_GUTTER}px">시간</div>`;
-  for (let i=0;i<DAYS.length;i++) {
-    const x = W_GUTTER + i*COL_W;
-    html += `<div class="head" style="left:${x}px;width:${COL_W}px;border-left:1px solid #ccc">${DAYS[i]}</div>`;
-    html += `<div class="col" style="left:${x}px;width:${COL_W}px"></div>`;
+function renderBoard(sel){
+  const W_GUTTER=80, COL_W=110, HEAD_H=40;
+  const width=W_GUTTER+DAYS.length*COL_W;
+  const height=(END_MIN-START_MIN)*PX_PER_MIN+HEAD_H;
+  let html=`<div class="board" style="width:${width}px;height:${height}px">`;
+  html+=`<div class="head" style="left:0px;width:${W_GUTTER}px">시간</div>`;
+  for(let i=0;i<DAYS.length;i++){
+    const x=W_GUTTER+i*COL_W;
+    html+=`<div class="head" style="left:${x}px;width:${COL_W}px;border-left:1px solid #ccc">${DAYS[i]}</div>`;
+    html+=`<div class="col" style="left:${x}px;width:${COL_W}px"></div>`;
   }
-  html += `<div class="gutter"></div>`;
-  for (let m = START_MIN; m <= END_MIN; m += 60) {
-    const x = -20;
-    const y = toY(m);
-    html += `<div class="hour" style="top:${y}px"></div>`;
-    const hh = Math.floor(m/60);
-    html += `<div class="hourlab" style="top:${y}px;left:${x}px;">${String(hh).padStart(2,"0")}:00</div>`;
+  html+=`<div class="gutter"></div>`;
+  for(let m=START_MIN;m<=END_MIN;m+=60){
+    const y=toY(m), hh=Math.floor(m/60);
+    html+=`<div class="hour" style="top:${y}px"></div>`;
+    html+=`<div class="hourlab" style="top:${y}px;left:-20px;">${String(hh).padStart(2,"0")}:00</div>`;
   }
-  const colmap = {}; let ci=0;
-  sel.forEach(c => { if(!colmap[c.code]) colmap[c.code] = COLORS[(ci++)%COLORS.length]; });
-  sel.forEach(c => {
-    if (c.start==null || c.end==null) return;
-    c.daylist.forEach(d => {
-      const di = DAYS.indexOf(d);
-      if (di < 0) return;
-      const left = W_GUTTER + di * COL_W;
-      const top  = 40 + (c.start - START_MIN) * PX_PER_MIN;
-      const height = Math.max(12, (c.end - c.start) * PX_PER_MIN);
-      const width = COL_W - 12;
-      const bg = colmap[c.code];
-
-      const showProf = document.getElementById("showProf").checked;
-      const showClassNbr = document.getElementById("showClassNbr").checked;
-      const showSBC = document.getElementById("showSBC").checked;
-      const lines = [];
-      if (showProf && c.prof) lines.push(c.prof);
-      if (showClassNbr && c.class_nbr!=null && c.class_nbr!=="") lines.push("#"+c.class_nbr);
-      if (showSBC && c.sbc) lines.push("SBC:"+c.sbc);
-      const sub = lines.length ? `<div class="blk-sub">${lines.join(" · ")}</div>` : "";
-
-      const label = `<div class="blk-title">${c.code}</div>${sub}`;
-      html += `<div class="block" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${bg}">${label}</div>`;
+  const colmap={}; let ci=0;
+  sel.forEach(c=>{ if(!colmap[c.code]) colmap[c.code]=COLORS[(ci++)%COLORS.length]; });
+  sel.forEach(c=>{
+    if(c.start==null||c.end==null) return;
+    c.daylist.forEach(d=>{
+      const di=DAYS.indexOf(d); if(di<0) return;
+      const left=80+di*110;
+      const top=40+(c.start-START_MIN)*PX_PER_MIN;
+      const height=Math.max(12,(c.end-c.start)*PX_PER_MIN);
+      const width=110-12;
+      const bg=colmap[c.code];
+      const showProf=document.getElementById("showProf").checked;
+      const showClassNbr=document.getElementById("showClassNbr").checked;
+      const showSBC=document.getElementById("showSBC").checked;
+      const lines=[];
+      if(showProf&&c.prof) lines.push(c.prof);
+      if(showClassNbr&&c.class_nbr!=null&&c.class_nbr!=="") lines.push("#"+c.class_nbr);
+      if(showSBC&&c.sbc) lines.push("SBC:"+c.sbc);
+      const sub=lines.length?`<div class="blk-sub">${lines.join(" · ")}</div>`:"";
+      const label=`<div class="blk-title">${c.code}</div>${sub}`;
+      html+=`<div class="block" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${bg}">${label}</div>`;
     });
   });
-  html += `</div>`;
-  const tba = sel.filter(c => c.start==null || c.end==null || !c.daylist || c.daylist.length===0);
-  if (tba.length) {
-    const s = tba.map(c => `${c.code}(${c.st_raw||"-"}-${c.en_raw||"-"})`).join(", ");
-    html += `<div class="tba"><b>TBA:</b> ${s}</div>`;
+  html+=`</div>`;
+  const tba=sel.filter(c=>c.start==null||c.end==null||!c.daylist||c.daylist.length===0);
+  if(tba.length){
+    const s=tba.map(c=>`${c.code}(${c.st_raw||"-"}-${c.en_raw||"-"})`).join(", ");
+    html+=`<div class="tba"><b>TBA:</b> ${s}</div>`;
   }
   return html;
 }
 
-function parseCSV(text) {
-  text = String(text);
-  text = text.split("\r\n").join("\n").split("\r").join("\n");
-  const rows = [];
-  let field = "", row = [], inQuotes = false;
-  for (let i=0;i<text.length;i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        const nx = text[i+1];
-        if (nx === '"') { field += '"'; i++; }
-        else { inQuotes = false; }
-      } else field += ch;
-    } else {
-      if (ch === '"') inQuotes = true;
-      else if (ch === ",") { row.push(field); field=""; }
-      else if (ch === "\n") { row.push(field); rows.push(row); row=[]; field=""; }
-      else field += ch;
+function parseCSV(text){
+  text=String(text).split("\r\n").join("\n").split("\r").join("\n");
+  const rows=[]; let field="",row=[],inQuotes=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQuotes){
+      if(ch==='"'){ const nx=text[i+1]; if(nx==='"'){ field+='"'; i++; } else inQuotes=false; }
+      else field+=ch;
+    }else{
+      if(ch==='"') inQuotes=true;
+      else if(ch===","){ row.push(field); field=""; }
+      else if(ch==="\n"){ row.push(field); rows.push(row); row=[]; field=""; }
+      else field+=ch;
     }
   }
   row.push(field); rows.push(row);
-  const headers = (rows.shift()||[]).map(h => String(h).trim());
-  return rows.filter(r => r.some(x => x && String(x).trim().length)).map(cols => {
-    const o = {};
-    for (let i=0;i<headers.length;i++) o[headers[i]] = (cols[i]!==undefined ? String(cols[i]).trim() : "");
+  const headers=(rows.shift()||[]).map(h=>String(h).trim());
+  return rows.filter(r=>r.some(x=>x&&String(x).trim().length)).map(cols=>{
+    const o={};
+    for(let i=0;i<headers.length;i++) o[headers[i]]=(cols[i]!==undefined?String(cols[i]).trim():"");
     return o;
   });
 }
-
-function buildCourses(rows) {
-  const out = [];
-  for (const r of rows) {
-    const code = r.course_code || "";
-    if (!/^[A-Z]{2,4}\d{3}\.[A-Z0-9]+$/.test(code)) continue;
-    const days = String(r.days||"").split(",").map(x => x.trim()).filter(x => x && x!=="-");
-    const daylist = days.filter(d => DAYS.includes(d));
-    const st_raw = r.start_time || "";
-    const en_raw = r.end_time || "";
-    const st = timeToMin(st_raw);
-    const en = timeToMin(en_raw);
-    const cred = parseFloat(r.credits||r.credit||r.Credits||0) || 0;
-    const prof = r.professor || r.instructor || r.instructor_name || r.faculty || r.prof || "";
-    const class_nbr = r.class_nbr || r.class || r.classnumber || r.classNbr || "";
-    const sbc = r.sbc || r.SBC || "";
-    out.push({ code, base: code.split(".")[0], daylist, start: st, end: en, st_raw, en_raw, cred, prof, class_nbr, sbc });
+// CSV 행 배열 → 과목 객체 배열
+function buildCourses(rows){
+  const out=[];
+  // 필수: course_code, days, start_time, end_time
+  for (const r of rows){
+    const code=r.course_code||"";
+    if(!/^[A-Z]{2,4}\d{3}\.[A-Z0-9]+$/.test(code)) continue;
+    const days=String(r.days||"").split(",").map(x=>x.trim()).filter(x=>x&&x!=="-"); // MO,TU,WE,TH,FR
+    const daylist=days.filter(d=>DAYS.includes(d)); // 유효한 요일만
+    const st_raw=r.start_time||"", en_raw=r.end_time||"";
+    const st=timeToMin(st_raw), en=timeToMin(en_raw);
+    const cred=parseFloat(r.credits||r.credit||r.Credits||0)||0;
+    const prof=r.professor||r.instructor||r.instructor_name||r.faculty||r.prof||"";
+    const class_nbr=r.class_nbr||r.class||r.classnumber||r.classNbr||"";
+    let sbcRaw=r.sbc||r.SBC||""; // 원본 SBC 문자열
+    let sbcList;
+    if(sbcRaw.startsWith("Partially fulfills:")) sbcList=[sbcRaw]; // 특수 케이스
+    else sbcList=sbcRaw.split(",").map(x=>x.trim()).filter(x=>x.length>0); // SBC 태그 배열
+    const base = code.split(".")[0];                // 예: CSE114
+    const subject = (base.match(/^[A-Z]+/)||[""])[0]; // 예: CSE
+    out.push({ code, base, subject, daylist, start:st, end:en,  // null=unknown
+               st_raw, en_raw, cred, prof, class_nbr, sbc:sbcRaw, sbcList }); // sbcList: []
   }
   return out;
 }
-
-function conflict(slots, seg) {
-  for (const s of slots) {
-    if (s.day !== seg.day) continue;
-    if (seg.start < s.end && seg.end > s.start) return true;
+// SBC 체크박스 상태 반환
+function getSbcPrefs(){
+  const prefs={};
+  document.querySelectorAll(".sbcTri").forEach(cb=>{ prefs[cb.dataset.sbc]=cb.dataset.state; });
+  return prefs;
+}
+// Subject 체크박스 상태 반환
+function buildSubjFilters(courses){
+  const div = document.getElementById("subjFilters");
+  div.innerHTML = ""; // 초기화
+  if (!courses || courses.length===0){
+    div.textContent = "Subject 필터 (CSV 로드 후 자동 생성)";
+    div.onclick = null; div.onkeydown = null;
+    return;
   }
-  return false;
+  const set = new Set(courses.map(c=>c.subject).filter(Boolean));
+  set.forEach(tag=>{
+    const label=document.createElement("label");
+    label.className="sbcLab";
+    const cb=document.createElement("input");
+    cb.type="checkbox"; cb.className="sbcTri"; cb.dataset.sbc = "SUBJ:"+tag; // 접두사로 구분
+    setTriState(cb,"ignore");
+    label.appendChild(cb); label.append(" "+tag);
+    div.appendChild(label);
+  });
+  // 이벤트 위임
+  div.onclick = (e)=>{
+    let cb = e.target.closest("input.sbcTri");
+    if (!cb){
+      const lab = e.target.closest && e.target.closest("label.sbcLab");
+      if (lab) cb = lab.querySelector("input.sbcTri");
+    }
+    if (!cb || !div.contains(cb)) return;
+    e.preventDefault(); e.stopPropagation();
+    cb.focus(); cycleTri(cb);
+  };
+  // 키보드 접근성
+  div.onkeydown = (e)=>{
+    let cb=null;
+    if (e.target.classList && e.target.classList.contains("sbcTri")) cb=e.target;
+    else{
+      const lab=e.target.closest && e.target.closest("label.sbcLab");
+      if (lab) cb=lab.querySelector("input.sbcTri");
+    }
+    if (!cb) return;
+    if (e.key===" "||e.key==="Enter"){ e.preventDefault(); cycleTri(cb); }
+  };
+}
+// Subject 체크박스 상태 반환
+function getSubjPrefs(){
+  const prefs={};
+  document.querySelectorAll("#subjFilters .sbcTri").forEach(cb=>{
+    prefs[cb.dataset.sbc] = cb.dataset.state; // 키는 "SUBJ:XXX"
+  });
+  return prefs;
+}
+// SBC 체크박스 빌드
+function buildSbcFilters(courses){
+  const sbcDiv = document.getElementById("sbcFilters");
+  sbcDiv.innerHTML = "";
+
+  // CSV 전: 틀만 표시
+  if (!courses || courses.length === 0) {
+    sbcDiv.textContent = "SBC 필터 (CSV 로드 후 자동 생성)";
+    sbcDiv.onclick = null;
+    sbcDiv.onkeydown = null;
+    return;
+  }
+
+  // 태그 집합
+  const set = new Set();
+  courses.forEach(c => (c.sbcList || []).forEach(tag => set.add(tag)));
+
+  // 라벨/체크박스 생성
+  set.forEach(tag => {
+    const label = document.createElement("label");
+    label.className = "sbcLab";  // 커스텀 표시용
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "sbcTri";
+    cb.dataset.sbc = tag;
+
+    // 기본 상태 = ignore (unchecked, not indeterminate)
+    setTriState(cb, "ignore");
+
+    label.appendChild(cb);
+    label.append(" " + tag);
+    sbcDiv.appendChild(label);
+  });
+
+  // 이벤트 위임: click만 사용, 기본 토글 차단
+  sbcDiv.onclick = (e) => {
+    let cb = e.target.closest("input.sbcTri");
+    if (!cb) {
+      const lab = e.target.closest && e.target.closest("label.sbcLab");
+      if (lab) cb = lab.querySelector("input.sbcTri");
+    }
+    if (!cb || !sbcDiv.contains(cb)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cb.focus();
+    cycleTri(cb); // ignore → must → exclude → ignore
+  };
+
+  // 키보드 접근성
+  sbcDiv.onkeydown = (e) => {
+    let cb = null;
+    if (e.target.classList && e.target.classList.contains("sbcTri")) cb = e.target;
+    else {
+      const lab = e.target.closest && e.target.closest("label.sbcLab");
+      if (lab) cb = lab.querySelector("input.sbcTri");
+    }
+    if (!cb) return;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      cycleTri(cb);
+    }
+  };
+}
+// 시간 필터
+let filterStart=START_MIN, filterEnd=END_MIN;
+function setTimeFilter(startHour,endHour){ filterStart=startHour*60; filterEnd=endHour*60; }
+function overlapsLunch(c){ if(!c.start||!c.end) return false; const ls=12*60, le=13*60; return c.start<le && c.end>ls; }
+function isCoupledLecture(c){ return /\.\d+$/.test(c.code)&&!/\.L/.test(c.code); }
+function findLabForLecture(courses,lecture){ return courses.find(x=>x.base===lecture.base&&/\.L/.test(x.code)); }
+
+// 파트 유형 분류
+function partOf(c){
+  if (/\.L/i.test(c.code)) return "LAB";
+  if (/\.R/i.test(c.code)) return "REC";
+  return "LEC";
 }
 
-let filterStart = START_MIN;
-let filterEnd   = END_MIN;
-function setTimeFilter(startHour, endHour) { filterStart = startHour * 60; filterEnd = endHour * 60; }
-function overlapsLunch(c) { if (!c.start || !c.end) return false; const ls = 12*60, le = 13*60; return c.start < le && c.end > ls; }
+// base별 파트 묶음 맵 생성
+function buildByBase(items0){
+  const byBase = new Map(); // base -> { LEC:[], REC:[], LAB:[] }
+  for (const it of items0){
+    const b = it.c.base;
+    if (!byBase.has(b)) byBase.set(b, { LEC:[], REC:[], LAB:[] });
+    byBase.get(b)[partOf(it.c)].push(it);
+  }
+  return byBase;
+}
+// 일정 조합 열거
+function enumerateSchedules(courses, maxOut){
+  const sbcPrefs = getSbcPrefs();
+  const subjPrefs = getSubjPrefs();
 
-function isCoupledLecture(c){ return /\.\d+$/.test(c.code) && !/\.L/.test(c.code); }
-function findLabForLecture(courses, lecture){ return courses.find(x=> x.base===lecture.base && /\.L/.test(x.code)); }
+  // exclude 사전 제거: SBC 또는 과목 둘 중 하나라도 exclude면 제외
+  const filtered = courses.filter(c=>{
+    for(const tag of c.sbcList){ if(sbcPrefs[tag]==="exclude") return false; }
+    const subjKey = "SUBJ:"+c.subject;
+    if (subjPrefs[subjKey]==="exclude") return false;
+    return true;
+  });
 
-function enumerateSchedules(courses, maxOut) {
-  const items = courses.slice().sort((a,b)=> a.code.localeCompare(b.code));
-  const res = [];
-  const seen = new Set();
-  const slotsInit = [];
+  // must 집합 구성: SBC must + 과목 must
+  const mustSbc = Object.entries(sbcPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
+  const mustSubj = Object.entries(subjPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
+  const mustAll = [...mustSbc, ...mustSubj];
 
+  // 아이템 전처리
+  const items0 = filtered.map(c => ({ c, dm: courseDayMasks(c) }));
+
+  // base별 파트 그룹
+  const byBase = buildByBase(items0);
+
+  // must 포함 과목 우선
+  const items = items0.slice().sort((A,B)=>{
+    const aHas = A.c.sbcList.some(t=>mustSbc.includes(t)) || mustSubj.includes("SUBJ:"+A.c.subject);
+    const bHas = B.c.sbcList.some(t=>mustSbc.includes(t)) || mustSubj.includes("SUBJ:"+B.c.subject);
+    if (aHas!==bHas) return bHas - aHas;
+    return A.c.code.localeCompare(B.c.code);
+  });
+
+  // 남은 최대 학점 상한
+  const remMaxCred = new Array(items.length+1).fill(0);
+  for (let i = items.length - 1; i >= 0; i--) remMaxCred[i] = remMaxCred[i+1] + (items[i].c.cred||0);
+
+  // suffix 가능성: mustAll을 채울 수 있는지 사전 검사
+  const suffixCan = new Array(items.length+1);
+  suffixCan[items.length] = new Set();
+  for (let i = items.length - 1; i >= 0; i--) {
+    const s = new Set(suffixCan[i+1]);
+    for (const t of items[i].c.sbcList) if (mustSbc.includes(t)) s.add(t);
+    const sk = "SUBJ:"+items[i].c.subject;
+    if (mustSubj.includes(sk)) s.add(sk);
+    suffixCan[i] = s;
+  }
+  const suffixAll = suffixCan[0]; // items 전체로부터 채울 수 있는 것
+  for (const t of mustAll) if (!suffixAll.has(t)) return [];
+
+  const res=[]; const seen=new Set(); // { sel:[course], total:cred }
+// 시그니처: 코드|요일문자열|start|end || ...
   function sigOf(sel){
-    const parts = sel.map(c => {
-      const d = (c.daylist||[]).join("");
-      const st = c.start??-1, en = c.end??-1;
+    const parts = sel.map(x=>{
+      const c=x.c; const d=(c.daylist||[]).join("");
+      const st=c.start??-1, en=c.end??-1;
       return `${c.code}|${d}|${st}|${en}`;
     }).sort();
     return parts.join("||");
   }
+// 탐색
+  const minOn=document.getElementById("creditEnable").checked;
+  const minC=parseInt(document.getElementById("minCred").value,10)||0;
+  const maxC=parseInt(document.getElementById("maxCred").value,10)||999;
+// 일정 탐색 마감 시간
+  function addOcc(dayOcc, dm){ const out=dayOcc.slice(); for(let di=0;di<5;di++) out[di]|=dm[di]; return out; }
+//  번들 선택: it를 포함하는 파트 묶음 선택
+  function chooseBundle(it, sel, dayOcc){
+    const base = it.c.base;
+    const group = byBase.get(base) || {LEC:[],REC:[],LAB:[]};
+    const have = {
+      LEC: sel.some(x=>x.c.base===base && partOf(x.c)==="LEC"),
+      REC: sel.some(x=>x.c.base===base && partOf(x.c)==="REC"),
+      LAB: sel.some(x=>x.c.base===base && partOf(x.c)==="LAB"),
+    };
+    const exists = { LEC: group.LEC.length>0, REC: group.REC.length>0, LAB: group.LAB.length>0 };
+    const p = partOf(it.c);
+    const need = { LEC:false, REC:false, LAB:false };
+    if (p==="LEC"){ if (exists.REC&&!have.REC) need.REC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
+    else if (p==="REC"){ if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
+    else { if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.REC&&!have.REC) need.REC=true; }
+// 선택지 배열
+    const recChoices = need.REC ? group.REC : [null];
+    const labChoices = need.LAB ? group.LAB : [null];
+    const lecChoices = need.LEC ? group.LEC : [null];
 
-  function dfs(i, sel, slots, sumCred) {
-    if (res.length >= maxOut) return;
-    if (i >= items.length) {
-      if (sel.length > 0) {
-        const sig = sigOf(sel);
-        if (!seen.has(sig)) {
-          seen.add(sig);
-          const minOn = document.getElementById("creditEnable").checked;
-          const minC = parseInt(document.getElementById("minCred").value,10)||0;
-          const maxC = parseInt(document.getElementById("maxCred").value,10)||999;
-          if (!minOn || (sumCred>=minC && sumCred<=maxC)) {
-            res.push({ sel: sel.slice(), total: sumCred });
+    for (const lec of lecChoices){
+      for (const rec of recChoices){
+        for (const lab of labChoices){
+          const bundle=[it]; if (lec) bundle.push(lec); if (rec) bundle.push(rec); if (lab) bundle.push(lab);
+          const uniq=[]; const seenPtr=new Set(sel);
+          for (const b of bundle) if (!seenPtr.has(b)) uniq.push(b);
+          if (!uniq.length) continue;
+
+          let ok=true; let dmBundle=[0n,0n,0n,0n,0n];
+          for (const x of uniq){
+            const cc=x.c;
+            if (cc.start!=null&&cc.end!=null){
+              if (cc.start<filterStart||cc.end>filterEnd){ ok=false; break; }
+              if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
+            }
+            for(let di=0;di<5;di++){ if ((dayOcc[di] & x.dm[di])!==0n){ ok=false; break; } }
+            if (!ok) break;
+            for(let di=0;di<5;di++) dmBundle[di]|=x.dm[di];
           }
+          if (!ok) continue;
+          return { uniq, dmBundle };
         }
+      }
+    }
+    return null;
+  }
+// 깊이 우선 탐색
+  function dfs(i, sel, dayOcc, sumCred, hit){
+    if (res.length>=maxOut) return;
+    if (performance.now()>_enumDeadline) return;
+
+    if (minOn && sumCred>maxC) return;
+    if (minOn && (sumCred + remMaxCred[i] < minC)) return;
+
+    const missing = mustAll.filter(t=>!hit.has(t));
+    if (missing.some(t=>!suffixCan[i].has(t))) return;
+
+    if (i>=items.length){
+      if (sel.length===0) return;
+      if (missing.length) return;
+      const sig=sigOf(sel);
+      if (!seen.has(sig)){
+        seen.add(sig);
+        if (!minOn || (sumCred>=minC && sumCred<=maxC)) res.push({ sel: sel.map(x=>x.c), total: sumCred });
       }
       return;
     }
-    const it = items[i];
 
-    // Skip branch
-    dfs(i+1, sel, slots, sumCred);
-    if (res.length >= maxOut) return;
+    const it=items[i];
 
-    // Window and lunch
-    if (it.start!=null && it.end!=null) {
-      if (it.start < filterStart || it.end > filterEnd) { return; }
-      if (document.getElementById("avoidLunch").checked && overlapsLunch(it)) { return; }
-    }
-    // Conflict for the item
-    let ok = true;
-    if (it.start!=null && it.end!=null) {
-      for (const d of it.daylist) {
-        if (conflict(slots, {day:d, start:it.start, end:it.end})) { ok=false; break; }
+    // take
+    const chosen=chooseBundle(it, sel, dayOcc);
+    if (chosen){
+      const newOcc=addOcc(dayOcc, chosen.dmBundle);
+      const newSel=sel.concat(chosen.uniq);
+      const newCred=sumCred+chosen.uniq.reduce((s,x)=>s+(x.c.cred||0),0);
+      const newHit=new Set(hit);
+      for (const x of chosen.uniq){
+        for (const t of x.c.sbcList) if (mustSbc.includes(t)) newHit.add(t);
+        const sk="SUBJ:"+x.c.subject; if (mustSubj.includes(sk)) newHit.add(sk);
       }
-    }
-    if (!ok) return;
-
-    // Bundle lecture+lab
-    let bundle = [it];
-    if (isCoupledLecture(it)) {
-      const lab = findLabForLecture(courses, it);
-      if (lab && !sel.includes(lab)) bundle.push(lab);
+      dfs(i+1,newSel,newOcc,newCred,newHit);
+      if (res.length>=maxOut) return;
     }
 
-    // Check conflicts for bundle and push slots
-    const newSlots = slots.slice();
-    let valid = true;
-    for (const c of bundle) {
-      if (c.start!=null && c.end!=null) {
-        for (const d of c.daylist) { if (conflict(newSlots, {day:d, start:c.start, end:c.end})) { valid=false; break; } }
-        if (!valid) break;
-        for (const d of c.daylist) newSlots.push({day:d, start:c.start, end:c.end});
-      }
-    }
-    if (!valid) return;
-
-    const newSel = sel.concat(bundle.filter(x=>!sel.includes(x)));
-    const newCred = sumCred + bundle.reduce((s,c)=> s+(c.cred||0),0);
-    dfs(i+1, newSel, newSlots, newCred);
+    // skip
+    dfs(i+1, sel, dayOcc, sumCred, hit);
   }
 
-  dfs(0, [], slotsInit, 0);
+  dfs(0, [], [0n,0n,0n,0n,0n], 0, new Set());
   return res;
 }
-
+// 결과 렌더링
 function formatCourseLine(c){
-  const days = (c.daylist && c.daylist.length) ? c.daylist.join("/") : "TBA";
-  const time = (c.start!=null && c.end!=null) ? (minToHHMM(c.start)+"–"+minToHHMM(c.end)) : ( (c.st_raw||"-")+"–"+(c.en_raw||"-") );
-  const cred = (c.cred||0);
-  const showProf = document.getElementById("showProf").checked;
-  const showClassNbr = document.getElementById("showClassNbr").checked;
-  const showSBC = document.getElementById("showSBC").checked;
-  const extras = [];
-  if (showProf && c.prof) extras.push(c.prof);
-  if (showClassNbr && c.class_nbr) extras.push("#"+c.class_nbr);
-  if (showSBC && c.sbc) extras.push("SBC:"+c.sbc);
-  const extraTxt = extras.length? " | "+extras.join(" · ") : "";
+  const days=(c.daylist&&c.daylist.length)?c.daylist.join("/"):"TBA";
+  const time=(c.start!=null&&c.end!=null)?(minToHHMM(c.start)+"–"+minToHHMM(c.end)):((c.st_raw||"-")+"–"+(c.en_raw||"-"));
+  const cred=(c.cred||0);
+  const showProf=document.getElementById("showProf").checked;
+  const showClassNbr=document.getElementById("showClassNbr").checked;
+  const showSBC=document.getElementById("showSBC").checked;
+  const extras=[];
+  if(showProf&&c.prof) extras.push(c.prof);
+  if(showClassNbr&&c.class_nbr) extras.push("#"+c.class_nbr);
+  if(showSBC&&c.sbc) extras.push("SBC:"+c.sbc);
+  const extraTxt=extras.length?" | "+extras.join(" · "):"";
   return `${c.code} | ${days} ${time} | ${cred}학점${extraTxt}`;
 }
+// 청크 단위 렌더링
+function renderResultsChunked(results){
+  const outEl = document.getElementById("output");
+  outEl.innerHTML = "";
+  const BATCH = 2; // 한 프레임당 렌더 개수
+  let i = 0;
 
-function renderResults(results) {
-  const out = [];
-  results.forEach((r, idx) => {
-    out.push(`<div class="sched"><div><strong>스케줄 ${idx+1}</strong> | 총학점 ${r.total}</div>`);
-    out.push(renderBoard(r.sel));
-    const lines = r.sel.map(formatCourseLine);
-    if (lines.length){
-      out.push(`<ul class="list">` + lines.map(x=>`<li>${x}</li>`).join("") + `</ul>`);
+  function chunk(){
+    const end = Math.min(i + BATCH, results.length);
+    const parts = [];
+    for (; i < end; i++) {
+      const r = results[i];
+      parts.push(`<div class="sched"><div><strong>스케줄 ${i+1}</strong> | 총학점 ${r.total}</div>`);
+      parts.push(renderBoard(r.sel));
+      const lines = r.sel.map(formatCourseLine);
+      if (lines.length) parts.push(`<ul class="list">`+lines.map(x=>`<li>${x}</li>`).join("")+`</ul>`);
+      parts.push(`</div>`);
     }
-    out.push(`</div>`);
-  });
-  document.getElementById('output').innerHTML = out.join('');
+    outEl.insertAdjacentHTML("beforeend", parts.join(""));
+    if (i < results.length) requestAnimationFrame(chunk);
+  }
+  requestAnimationFrame(chunk);
 }
+// 디바운스 및 중복 방지
+let _refreshTimer = null;
+let _isEnumerating = false;
 
-function applyAndEnumerate(allCourses) {
-  const fs = parseInt(document.getElementById("filterStart").value,10);
-  const fe = parseInt(document.getElementById("filterEnd").value,10);
+function triggerRefresh(){
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => {
+    if (_isEnumerating) return;
+    _isEnumerating = true;
+    requestAnimationFrame(() => {
+      applyAndEnumerate(allCourses);
+      _isEnumerating = false;
+    });
+  }, 120); // 120ms 디바운스
+}
+// 필터 적용 및 열거
+function applyAndEnumerate(allCourses){
+  const fs=parseInt(document.getElementById("filterStart").value,10);
+  const fe=parseInt(document.getElementById("filterEnd").value,10);
   setTimeFilter(fs, fe);
-  const maxShow = parseInt(document.getElementById("maxShow").value,10) || 5;
+  const maxShow=parseInt(document.getElementById("maxShow").value,10)||5;
+
+  // must 개수에 비례해 예산 확대
+  const prefs = getSbcPrefs();
+  const mustCount = Object.values(prefs).filter(v=>v==="must").length;
+  _enumDeadline = performance.now() + ENUM_BUDGET_MS + mustCount*200;
+
   const results = enumerateSchedules(allCourses, maxShow);
-  document.getElementById("status").textContent = `생성: ${results.length}개 (최대 ${maxShow})`;
+
+  document.getElementById("status").textContent =
+    `생성: ${results.length}개 (최대 ${maxShow})`;
   if (results.length === 0) {
-    document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+    document.getElementById("output").innerHTML =
+      `<div class="sched">${renderBoard([])}</div>`;
   } else {
-    renderResults(results);
+    renderResultsChunked(results);
   }
 }
-
+// 초기화
 (function init(){
-  document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
-  const fileInput = document.getElementById("csvFile");
-  let allCourses = [];
-  fileInput.addEventListener("change", () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (!f) { document.getElementById("status").textContent = "파일 선택 취소"; return; }
-    const fr = new FileReader();
-    fr.onload = e => {
-      try {
-        const rows = parseCSV(e.target.result);
-        allCourses = buildCourses(rows);
-        document.getElementById("status").textContent = `로드됨: ${allCourses.length}개 섹션`;
+  document.getElementById("output").innerHTML=`<div class="sched">${renderBoard([])}</div>`;
+  buildSbcFilters([]);   // CSV 전 틀
+  buildSubjFilters([]);  // CSV 전 틀
+
+  const fileInput=document.getElementById("csvFile");
+  fileInput.addEventListener("change",()=>{
+    const f=fileInput.files&&fileInput.files[0];
+    if(!f){ document.getElementById("status").textContent="파일 선택 취소"; return; }
+    const fr=new FileReader();
+    fr.onload=e=>{
+      try{
+        const rows=parseCSV(e.target.result);
+        allCourses=buildCourses(rows);
+        buildSbcFilters(allCourses);
+        buildSubjFilters(allCourses);
+        document.getElementById("status").textContent=`로드됨: ${allCourses.length}개 섹션`;
         applyAndEnumerate(allCourses);
-      } catch(err) {
-        document.getElementById("status").textContent = "CSV 파싱 실패";
-        document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+      }catch(err){
+        document.getElementById("status").textContent="CSV 파싱 실패";
+        document.getElementById("output").innerHTML=`<div class="sched">${renderBoard([])}</div>`;
       }
     };
-    fr.readAsText(f, "utf-8");
+    fr.readAsText(f,"utf-8");
   });
 
-  // Manual refresh only
-  document.getElementById("refreshBtn").addEventListener("click", () => applyAndEnumerate(allCourses));
+  document.getElementById("refreshBtn").addEventListener("click",()=>applyAndEnumerate(allCourses));
 })();
 
 </script>
