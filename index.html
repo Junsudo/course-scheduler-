@@ -36,12 +36,12 @@
 </head>
 <body>
 <h2>Course Scheduler • Enumerator</h2>
-// Row 1: Main controls
 <div class="controls wrap" id="controlsRow1">
   <label>CSV <input type="file" id="csvFile" accept=".csv"></label>
   <label>Start <input type="number" id="filterStart" value="8" min="0" max="23"></label>
   <label>End <input type="number" id="filterEnd" value="19" min="1" max="24"></label>
   <label><input type="checkbox" id="avoidLunch"> 점심 회피(12:00–13:00)</label>
+  <label><input type="checkbox" id="avoidFriday"> 금공강</label>
   <label>Max schedules <input type="number" id="maxShow" value="5" min="1" max="200"></label>
   <label><input type="checkbox" id="showProf" checked> 교수</label>
   <label><input type="checkbox" id="showClassNbr" checked> class_nbr</label>
@@ -49,17 +49,13 @@
   <button id="refreshBtn" type="button">Refresh</button>
   <span id="status" class="meta"></span>
 </div>
-// Row 2: Credit filters
 <div class="controls wrap" id="controlsRow2">
   <label><input type="checkbox" id="creditEnable" checked> 학점 제한</label>
   <label>Min <input type="number" id="minCred" value="12" min="12" max="30"></label>
   <label>Max <input type="number" id="maxCred" value="18" min="12" max="24"></label>
 </div>
-// Row 3: SBC filters
 <div class="controls wrap" id="sbcFilters"></div>
-// Row 4: Subject filters
 <div class="controls wrap" id="subjFilters"></div>
-// Output
 <div id="output"></div>
 
 <script>
@@ -388,12 +384,14 @@ function buildByBase(items0){
 function enumerateSchedules(courses, maxOut){
   const sbcPrefs = getSbcPrefs();
   const subjPrefs = getSubjPrefs();
+  const friOff = document.getElementById("avoidFriday").checked;
 
   // exclude 사전 제거: SBC 또는 과목 둘 중 하나라도 exclude면 제외
   const filtered = courses.filter(c=>{
     for(const tag of c.sbcList){ if(sbcPrefs[tag]==="exclude") return false; }
     const subjKey = "SUBJ:"+c.subject;
     if (subjPrefs[subjKey]==="exclude") return false;
+    if (friOff && c.daylist && c.daylist.includes("FR")) return false;
     return true;
   });
 
@@ -480,10 +478,15 @@ function enumerateSchedules(courses, maxOut){
           let ok=true; let dmBundle=[0n,0n,0n,0n,0n];
           for (const x of uniq){
             const cc=x.c;
+            // 금공강 옵션 적용
+            if (document.getElementById("avoidFriday").checked &&
+                cc.daylist && cc.daylist.includes("FR")) { ok = false; break; }
+            // 시간 필터 적용
             if (cc.start!=null&&cc.end!=null){
               if (cc.start<filterStart||cc.end>filterEnd){ ok=false; break; }
               if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
             }
+            // 시간 중복 검사
             for(let di=0;di<5;di++){ if ((dayOcc[di] & x.dm[di])!==0n){ ok=false; break; } }
             if (!ok) break;
             for(let di=0;di<5;di++) dmBundle[di]|=x.dm[di];
@@ -645,6 +648,7 @@ function applyAndEnumerate(allCourses){
   });
 
   document.getElementById("refreshBtn").addEventListener("click",()=>applyAndEnumerate(allCourses));
+  document.getElementById("avoidFriday").addEventListener("change",()=>applyAndEnumerate(allCourses));
 })();
 
 </script>
