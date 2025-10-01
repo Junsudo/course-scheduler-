@@ -7,10 +7,21 @@
 <style>
   body{font-family:system-ui,sans-serif;margin:16px}
   h2{margin:8px 0 12px}
-  .controls{margin:8px 0 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+  /* 컨트롤: 항상 가로 배치 + 줄바꿈 */
+  .controls{margin:8px 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px}
   .controls.wrap{flex-wrap:wrap}
-  .sched{margin:18px 0;width:880px}
-  .board{position:relative;width:880px;height:700px;border:1px solid #999}
+  .controls label{display:inline-flex;align-items:center;gap:6px;line-height:1.3}
+  .controls input[type="checkbox"]{width:18px;height:18px}
+  input[type="number"]{width:60px}
+  .meta{font-size:12px;color:#555;margin:4px 0 8px}
+
+
+/* 래퍼: 가로는 컨테이너에 맞춤, 잘림 방지 위해 visible */
+/* 래퍼: 다음 요소와 간격 최소화 */
+.sched{margin:12px 0; width:100%; position:relative; overflow:visible; padding-top:0} /* padding-top은 JS가 설정 */
+/* 보드: 폭은 JS가 inline으로 지정. 최소폭, 스케일 기준만 유지 */
+.board{position:relative;height:700px;border:1px solid #999;transform-origin:top left}
   .gutter{position:absolute;left:0;top:40px;width:80px;bottom:0;border-right:1px solid #ccc;background:#fafafa}
   .col{position:absolute;top:40px;bottom:0;width:160px;border-left:1px solid #eee}
   .head{position:absolute;top:0;height:40px;line-height:40px;text-align:center;border-right:1px solid #ccc;background:#eee;font-weight:600}
@@ -20,19 +31,114 @@
   .blk-title{font-weight:800}
   .blk-sub{font-weight:600;font-size:11px;opacity:.95}
   .tba{margin-top:6px;font-size:12px;color:#333}
-  input[type="number"]{width:60px}
-  .meta{font-size:12px;color:#555;margin:4px 0 8px}
   .list{font-size:13px;margin:14px 0 0;padding-left:18px}
   .list li{margin:2px 0}
+
+  /* 구분선+제목 */
+  .filter-title{
+    margin:10px 0 4px; padding-top:10px;
+    border-top:1px solid #e3e3e3; font-weight:700; font-size:14px; color:#333
+  }
+
+  /* 필터 라벨 그리드: SBC 자동채움, SUBJ 3열 */
+  #sbcFilters, #subjFilters{display:grid;gap:8px}
+  #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+  #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr))}
+
   /* 커스텀 tri-state 체크박스 */
-  #sbcFilters label.sbcLab, #subjFilters label.sbcLab{position:relative;padding-left:22px;cursor:pointer;user-select:none}
-  #sbcFilters label.sbcLab::before, #subjFilters label.sbcLab::before{content:"";position:absolute;left:0;top:2px;width:16px;height:16px;border:1px solid #666;border-radius:3px;background:#fff}
-  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after, #subjFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after{content:"✓";position:absolute;left:2px;top:-1px;font-size:16px;line-height:16px}
-  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after, #subjFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after{content:"–";position:absolute;left:5px;top:-1px;font-size:18px;line-height:16px}
-  #sbcFilters label.sbcLab:has(input.sbcTri:focus), #subjFilters label.sbcLab:has(input.sbcTri:focus){outline:2px solid #2684ff;outline-offset:2px;border-radius:4px}
-  #sbcFilters input.sbcTri, #subjFilters input.sbcTri{position:absolute;left:0;top:2px;width:16px;height:16px;opacity:0;margin:0;padding:0}
+  #sbcFilters label.sbcLab, #subjFilters label.sbcLab{
+    position:relative;display:inline-flex;align-items:center;gap:6px;padding-left:24px;cursor:pointer;user-select:none
+  }
+  #sbcFilters label.sbcLab::before, #subjFilters label.sbcLab::before{
+    content:"";position:absolute;left:0;top:0;width:18px;height:18px;border:1px solid #666;border-radius:3px;background:#fff
+  }
+  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after,
+  #subjFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after{
+    content:"✓";position:absolute;left:3px;top:-2px;font-size:16px;line-height:16px
+  }
+  #sbcFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after,
+  #subjFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after{
+    content:"–";position:absolute;left:6px;top:-2px;font-size:18px;line-height:16px
+  }
+  #sbcFilters label.sbcLab:has(input.sbcTri:focus),
+  #subjFilters label.sbcLab:has(input.sbcTri:focus){
+    outline:2px solid #2684ff;outline-offset:2px;border-radius:4px
+  }
+  #sbcFilters input.sbcTri, #subjFilters input.sbcTri{
+    position:absolute;left:0;top:0;width:18px;height:18px;opacity:0;margin:0;padding:0
+  }
+
+  /* 모바일: 가로 배치 유지 + 여유 간격 확대 */
+  @media (max-width: 768px){
+    .controls{gap:14px 18px}                 /* 가로 유지, 간격 확대 */
+    input[type="number"]{width:64px}
+    #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  }
+  @media (max-width: 480px){
+    h2{font-size:18px;margin:6px 0 10px}
+    .controls{gap:14px 16px}
+    #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+    #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr))}
+    input[type="checkbox"], input[type="number"], button{min-height:34px}
+    button#refreshBtn{padding:6px 10px}
+  }
+  /* board 폰트 +2px */
+.board .hourlab{font-size:18px} /* 좌측 시간 눈금 */
+.board .head{font-size:21px} /* 요일 헤더 */
+.board .block{font-size:20px; line-height:1.25} /* 수업 블록 전체 기본 글자 크기 */
+.board .blk-title{font-size:20px} /* 수업 제목 */
+.board .blk-sub{font-size:18px} /* 수업 보조정보 */
+
+/* 보드: 절대배치로 띄워 레이아웃 공간 차지 안 함 */
+.sched .board{position:absolute; left:0; top:0; border:1px solid #999; transform-origin:top left}
+/* 설명 리스트 간격 축소 */
+.list{margin:4px 0 0; padding-left:16px}            /* 설명 리스트 위 여백 축소 */
+@media (max-width: 768px){
+  .sched{ margin:14px 0 }            /* 모바일 래퍼 상하 여백도 약간 축소 */
+}
+
+/* PC(>=1024px): SUBJ를 가로로 자동 채움 */
+@media (min-width: 1024px){
+  #subjFilters{
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* PC(>=1024px): 시간표 4열 그리드 (1–4, 5–8, ...) */
+@media (min-width: 1024px){
+  #output{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:20px 24px;   /* 행, 열 간격 */
+    align-items:start;
+  }
+  .sched{
+    width:100%;
+    margin:0;
+  }
+}
+/* 필터 제목 크기 */
+.filter-title{ font-size:13px }
+
+/* 필터 라벨 글자 (SBC/SUBJ 공통) */
+#sbcFilters label.sbcLab,
+#subjFilters label.sbcLab{ font-size:12px }
+
+/* 일반 컨트롤 라벨 글자 */
+.controls label{ font-size:12px }
+
+/* 모바일에서 더 작게 */
+@media (max-width: 480px){
+  .filter-title{ font-size:12px }
+  #sbcFilters label.sbcLab,
+  #subjFilters label.sbcLab,
+  .controls label{ font-size:11px }
+}
 
 </style>
+
 </head>
 <body>
 <h2>Course Scheduler • Enumerator</h2>
@@ -54,8 +160,14 @@
   <label>Min <input type="number" id="minCred" value="12" min="12" max="30"></label>
   <label>Max <input type="number" id="maxCred" value="18" min="12" max="24"></label>
 </div>
+<!-- Row 3: SBC filters -->
+<div class="filter-title">SBC 필터</div>
 <div class="controls wrap" id="sbcFilters"></div>
+
+<!-- Row 4: Subject filters -->
+<div class="filter-title">Subject 필터</div>
 <div class="controls wrap" id="subjFilters"></div>
+
 <div id="output"></div>
 
 <script>
@@ -63,9 +175,12 @@
 // === 상수 및 전역 변수 ===
 const DAYS=["MO","TU","WE","TH","FR"];
 const COLORS=["#4da6ff","#5cb85c","#f0ad4e","#d9534f","#9370db","#20c997","#ff6666","#009688","#795548"];
-const PX_PER_MIN=1.0;
+let PX_PER_MIN=2.0;
 const START_MIN=9*60;
 const END_MIN=1130;
+const W_GUTTER = 80;    // 좌측 거터
+const COL_W    = 160;   // 요일 열 폭
+const HEAD_H   = 40;    // 헤더 높이
 // 전체 과목 데이터
 let allCourses = [];
 // === 시간 마스크 유틸 (5분 단위) ===
@@ -121,6 +236,7 @@ function minToHHMM(min){
   const h=Math.floor(min/60), m=min%60;
   return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
 }
+
 // Y 좌표 변환
 function toY(min){ return 40+(min-START_MIN)*PX_PER_MIN; }
 // tri-state 체크박스 상태 설정
@@ -139,51 +255,56 @@ function cycleTri(cb){
   triggerRefresh(); // 버튼 클릭 호출 제거
 }
 
-function renderBoard(sel){
-  const W_GUTTER=80, COL_W=110, HEAD_H=40;
-  const width=W_GUTTER+DAYS.length*COL_W;
-  const height=(END_MIN-START_MIN)*PX_PER_MIN+HEAD_H;
-  let html=`<div class="board" style="width:${width}px;height:${height}px">`;
-  html+=`<div class="head" style="left:0px;width:${W_GUTTER}px">시간</div>`;
-  for(let i=0;i<DAYS.length;i++){
-    const x=W_GUTTER+i*COL_W;
-    html+=`<div class="head" style="left:${x}px;width:${COL_W}px;border-left:1px solid #ccc">${DAYS[i]}</div>`;
-    html+=`<div class="col" style="left:${x}px;width:${COL_W}px"></div>`;
+function renderBoard(sel) {
+  const width  = W_GUTTER + DAYS.length * COL_W;
+  const height = (END_MIN - START_MIN) * PX_PER_MIN + HEAD_H;
+
+  let html = `<div class="board" style="width:${width}px;height:${height}px">`;
+  html += `<div class="head" style="left:0px;width:${W_GUTTER}px">시간</div>`;
+  for (let i=0;i<DAYS.length;i++) {
+    const x = W_GUTTER + i*COL_W;
+    html += `<div class="head" style="left:${x}px;width:${COL_W}px;border-left:1px solid #ccc">${DAYS[i]}</div>`;
+    html += `<div class="col"  style="left:${x}px;width:${COL_W}px"></div>`;
   }
-  html+=`<div class="gutter"></div>`;
-  for(let m=START_MIN;m<=END_MIN;m+=60){
-    const y=toY(m), hh=Math.floor(m/60);
-    html+=`<div class="hour" style="top:${y}px"></div>`;
-    html+=`<div class="hourlab" style="top:${y}px;left:-20px;">${String(hh).padStart(2,"0")}:00</div>`;
+  html += `<div class="gutter"></div>`;
+  for (let m = START_MIN; m <= END_MIN; m += 60) {
+    const y = toY(m);
+    html += `<div class="hour" style="top:${y}px"></div>`;
+    const hh = Math.floor(m/60);
+    html += `<div class="hourlab" style="top:${y}px;left:-20px;">${String(hh).padStart(2,"0")}:00</div>`;
   }
-  const colmap={}; let ci=0;
-  sel.forEach(c=>{ if(!colmap[c.code]) colmap[c.code]=COLORS[(ci++)%COLORS.length]; });
-  sel.forEach(c=>{
-    if(c.start==null||c.end==null) return;
-    c.daylist.forEach(d=>{
-      const di=DAYS.indexOf(d); if(di<0) return;
-      const left=80+di*110;
-      const top=40+(c.start-START_MIN)*PX_PER_MIN;
-      const height=Math.max(12,(c.end-c.start)*PX_PER_MIN);
-      const width=110-12;
-      const bg=colmap[c.code];
-      const showProf=document.getElementById("showProf").checked;
-      const showClassNbr=document.getElementById("showClassNbr").checked;
-      const showSBC=document.getElementById("showSBC").checked;
-      const lines=[];
-      if(showProf&&c.prof) lines.push(c.prof);
-      if(showClassNbr&&c.class_nbr!=null&&c.class_nbr!=="") lines.push("#"+c.class_nbr);
-      if(showSBC&&c.sbc) lines.push("SBC:"+c.sbc);
-      const sub=lines.length?`<div class="blk-sub">${lines.join(" · ")}</div>`:"";
-      const label=`<div class="blk-title">${c.code}</div>${sub}`;
-      html+=`<div class="block" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${bg}">${label}</div>`;
+  const colmap = {}; let ci=0;
+  sel.forEach(c => { if(!colmap[c.code]) colmap[c.code] = COLORS[(ci++)%COLORS.length]; });
+  sel.forEach(c => {
+    if (c.start==null || c.end==null) return;
+    c.daylist.forEach(d => {
+      const di = DAYS.indexOf(d);
+      if (di < 0) return;
+      const left = W_GUTTER + di * COL_W;
+      const top  = HEAD_H + (c.start - START_MIN) * PX_PER_MIN;
+      const height = Math.max(12, (c.end - c.start) * PX_PER_MIN);
+      const width  = COL_W - 12;
+      const bg = colmap[c.code];
+
+      const showProf = document.getElementById("showProf").checked;
+      const showClassNbr = document.getElementById("showClassNbr").checked;
+      const showSBC = document.getElementById("showSBC").checked;
+      const lines = [];
+      if (showProf && c.prof) lines.push(c.prof);
+      if (showClassNbr && c.class_nbr!=null && c.class_nbr!=="") lines.push("#"+c.class_nbr);
+      if (showSBC && c.sbc) lines.push("SBC:"+c.sbc);
+      const sub = lines.length ? `<div class="blk-sub">${lines.join(" · ")}</div>` : "";
+      const label = `<div class="blk-title">${c.code}</div>${sub}`;
+
+      html += `<div class="block" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${bg}">${label}</div>`;
     });
   });
-  html+=`</div>`;
-  const tba=sel.filter(c=>c.start==null||c.end==null||!c.daylist||c.daylist.length===0);
-  if(tba.length){
-    const s=tba.map(c=>`${c.code}(${c.st_raw||"-"}-${c.en_raw||"-"})`).join(", ");
-    html+=`<div class="tba"><b>TBA:</b> ${s}</div>`;
+  html += `</div>`;
+
+  const tba = sel.filter(c => c.start==null || c.end==null || !c.daylist || c.daylist.length===0);
+  if (tba.length) {
+    const s = tba.map(c => `${c.code}(${c.st_raw||"-"}-${c.en_raw||"-"})`).join(", ");
+    html += `<div class="tba"><b>TBA:</b> ${s}</div>`;
   }
   return html;
 }
@@ -578,6 +699,7 @@ function renderResultsChunked(results){
       parts.push(`</div>`);
     }
     outEl.insertAdjacentHTML("beforeend", parts.join(""));
+    fitBoards();
     if (i < results.length) requestAnimationFrame(chunk);
   }
   requestAnimationFrame(chunk);
@@ -622,34 +744,72 @@ function applyAndEnumerate(allCourses){
 }
 // 초기화
 (function init(){
-  document.getElementById("output").innerHTML=`<div class="sched">${renderBoard([])}</div>`;
-  buildSbcFilters([]);   // CSV 전 틀
-  buildSubjFilters([]);  // CSV 전 틀
+  // 초기 보드 렌더 + 스케일
+  document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+  fitBoards();
 
-  const fileInput=document.getElementById("csvFile");
-  fileInput.addEventListener("change",()=>{
-    const f=fileInput.files&&fileInput.files[0];
-    if(!f){ document.getElementById("status").textContent="파일 선택 취소"; return; }
-    const fr=new FileReader();
-    fr.onload=e=>{
-      try{
-        const rows=parseCSV(e.target.result);
-        allCourses=buildCourses(rows);
+  // CSV 전 필터 틀
+  buildSbcFilters([]);
+  if (typeof buildSubjFilters === "function") buildSubjFilters([]);
+
+  // CSV 로드
+  const fileInput = document.getElementById("csvFile");
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) { document.getElementById("status").textContent = "파일 선택 취소"; return; }
+    const fr = new FileReader();
+    fr.onload = e => {
+      try {
+        const rows = parseCSV(e.target.result);
+        allCourses = buildCourses(rows);
         buildSbcFilters(allCourses);
-        buildSubjFilters(allCourses);
-        document.getElementById("status").textContent=`로드됨: ${allCourses.length}개 섹션`;
+        if (typeof buildSubjFilters === "function") buildSubjFilters(allCourses);
+        document.getElementById("status").textContent = `로드됨: ${allCourses.length}개 섹션`;
         applyAndEnumerate(allCourses);
-      }catch(err){
-        document.getElementById("status").textContent="CSV 파싱 실패";
-        document.getElementById("output").innerHTML=`<div class="sched">${renderBoard([])}</div>`;
+        fitBoards();
+      } catch(err) {
+        document.getElementById("status").textContent = "CSV 파싱 실패";
+        document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
+        fitBoards();
       }
     };
-    fr.readAsText(f,"utf-8");
+    fr.readAsText(f, "utf-8");
   });
 
-  document.getElementById("refreshBtn").addEventListener("click",()=>applyAndEnumerate(allCourses));
-  document.getElementById("avoidFriday").addEventListener("change",()=>applyAndEnumerate(allCourses));
+  // 버튼/옵션 리스너
+  document.getElementById("refreshBtn").addEventListener("click", () => applyAndEnumerate(allCourses));
+  const af = document.getElementById("avoidFriday");
+  if (af) af.addEventListener("change", () => applyAndEnumerate(allCourses));
+  window.addEventListener("resize", fitBoards);
 })();
+
+// 화면 너비에 맞춰 보드를 축소해 좌우 스크롤 제거
+function fitBoards(){
+  const LOGICAL_W = W_GUTTER + COL_W * DAYS.length; // 예: 80 + 160*5 = 880
+  const BOARD_BORDER = 2;
+
+  document.querySelectorAll(".sched").forEach(wrap=>{
+    const board = wrap.querySelector(".board");
+    if (!board) return;
+
+    const wrapW = wrap.clientWidth || LOGICAL_W;
+    const PAD = 0; // 좌우 여유 필요시 조정
+    const avail = Math.max(0, wrapW - PAD*2);
+
+    const scale = Math.min(1, (avail - 1) / (LOGICAL_W + BOARD_BORDER));
+    board.style.transform = `scale(${scale})`;
+
+    // 핵심: 보드의 스케일된 실제 높이를 래퍼의 padding-top으로 부여
+    const scaledH = Math.ceil(board.offsetHeight * scale);
+    wrap.style.paddingTop = scaledH + "px";
+
+    // 높이 지정은 불필요
+    wrap.style.height = "";
+  });
+}
+
+window.addEventListener("resize", fitBoards);
+
 
 </script>
 </body>
