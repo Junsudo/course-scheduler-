@@ -591,51 +591,89 @@ function enumerateSchedules(courses, maxOut){
 
   function addOcc(dayOcc, dm){ const out=dayOcc.slice(); for(let di=0;di<5;di++) out[di]|=dm[di]; return out; }
 
-  function chooseBundle(it, sel, dayOcc){
-    const base = it.c.base;
-    const group = byBase.get(base) || {LEC:[],REC:[],LAB:[]};
-    const have = {
-      LEC: sel.some(x=>x.c.base===base && partOf(x.c)==="LEC"),
-      REC: sel.some(x=>x.c.base===base && partOf(x.c)==="REC"),
-      LAB: sel.some(x=>x.c.base===base && partOf(x.c)==="LAB"),
-    };
-    const exists = { LEC: group.LEC.length>0, REC: group.REC.length>0, LAB: group.LAB.length>0 };
-    const p = partOf(it.c);
-    const need = { LEC:false, REC:false, LAB:false };
-    if (p==="LEC"){ if (exists.REC&&!have.REC) need.REC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
-    else if (p==="REC"){ if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
-    else { if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.REC&&!have.REC) need.REC=true; }
+  //  번들 선택: it를 포함하는 파트 묶음 선택
+  //  번들 선택: it를 포함하는 파트 묶음 선택 (분반 숫자 매칭 우선)
+function chooseBundle(it, sel, dayOcc){
+  // 분반키 추출: ".R91" ".L91" ".91" → "91"
+  const secKeyOf = (code)=>{
+    const m = String(code).match(/\.(?:[A-Z])?(\d+)/i);
+    return m ? m[1] : null;
+  };
 
-    const recChoices = need.REC ? group.REC : [null];
-    const labChoices = need.LAB ? group.LAB : [null];
-    const lecChoices = need.LEC ? group.LEC : [null];
+  const base  = it.c.base;
+  const group = byBase.get(base) || { LEC:[], REC:[], LAB:[] };
 
-    for (const lec of lecChoices){
-      for (const rec of recChoices){
-        for (const lab of labChoices){
-          const bundle=[it]; if (lec) bundle.push(lec); if (rec) bundle.push(rec); if (lab) bundle.push(lab);
-          const uniq=[]; const seenPtr=new Set(sel);
-          for (const b of bundle) if (!seenPtr.has(b)) uniq.push(b);
-          if (!uniq.length) continue;
+  const have = {
+    LEC: sel.some(x=>x.c.base===base && partOf(x.c)==="LEC"),
+    REC: sel.some(x=>x.c.base===base && partOf(x.c)==="REC"),
+    LAB: sel.some(x=>x.c.base===base && partOf(x.c)==="LAB"),
+  };
+  const exists = { LEC: group.LEC.length>0, REC: group.REC.length>0, LAB: group.LAB.length>0 };
 
-          let ok=true; let dmBundle=[0n,0n,0n,0n,0n];
-          for (const x of uniq){
-            const cc=x.c;
-            if (cc.start!=null&&cc.end!=null){
-              if (cc.start<filterStart||cc.end>filterEnd){ ok=false; break; }
-              if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
-            }
-            for(let di=0;di<5;di++){ if ((dayOcc[di] & x.dm[di])!==0n){ ok=false; break; } }
-            if (!ok) break;
-            for(let di=0;di<5;di++) dmBundle[di]|=x.dm[di];
+  const p = partOf(it.c);
+  // 동일 과목 동일 파트 중복 금지
+  if (have[p]) return null;
+
+  // 현재 선택 항목의 분반키
+  const key = secKeyOf(it.c.code);
+
+  // 필요 파트 산정
+  const need = { LEC:false, REC:false, LAB:false };
+  if (p==="LEC"){
+    if (exists.REC && !have.REC) need.REC = true;
+    if (exists.LAB && !have.LAB) need.LAB = true;
+  } else if (p==="REC"){
+    if (!have.LEC && exists.LEC) need.LEC = true;
+    if (exists.LAB && !have.LAB) need.LAB = true;
+  } else { // LAB
+    if (!have.LEC && exists.LEC) need.LEC = true;
+    if (exists.REC && !have.REC) need.REC = true;
+  }
+
+  // 분반키 우선 매칭 선택지
+  const pref = (arr)=> arr.filter(x=>secKeyOf(x.c.code)===key);
+  const lecChoices = need.LEC ? (pref(group.LEC).length ? pref(group.LEC) : group.LEC) : [null];
+  const recChoices = need.REC ? (pref(group.REC).length ? pref(group.REC) : group.REC) : [null];
+  const labChoices = need.LAB ? (pref(group.LAB).length ? pref(group.LAB) : group.LAB) : [null];
+
+  for (const lec of lecChoices){
+    for (const rec of recChoices){
+      for (const lab of labChoices){
+        const bundle = [it];
+        if (lec) bundle.push(lec);
+        if (rec) bundle.push(rec);
+        if (lab) bundle.push(lab);
+
+        // 중복 제거
+        const uniq = [];
+        const seenPtr = new Set(sel);
+        for (const b of bundle) if (!seenPtr.has(b)) uniq.push(b);
+        if (!uniq.length) continue;
+
+        // 시간/겹침 검사
+        let ok = true;
+        const dmBundle = [0n,0n,0n,0n,0n];
+        for (const x of uniq){
+          const cc = x.c;
+          if (cc.start!=null && cc.end!=null){
+            if (cc.start < filterStart || cc.end > filterEnd){ ok=false; break; }
+            if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
           }
-          if (!ok) continue;
-          return { uniq, dmBundle };
+          for (let di=0; di<5; di++){
+            if ((dayOcc[di] & x.dm[di]) !== 0n){ ok=false; break; }
+          }
+          if (!ok) break;
+          for (let di=0; di<5; di++) dmBundle[di] |= x.dm[di];
         }
+        if (!ok) continue;
+
+        return { uniq, dmBundle };
       }
     }
-    return null;
   }
+  return null;
+}
+
 
   function dfs(i, sel, dayOcc, sumCred, hit){
     if (res.length>=maxOut) return;
