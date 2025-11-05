@@ -8,7 +8,7 @@
   body{font-family:system-ui,sans-serif;margin:16px}
   h2{margin:8px 0 12px}
 
-  /* 컨트롤: 항상 가로 배치 + 줄바꿈 */
+  /* 컨트롤 */
   .controls{margin:8px 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px}
   .controls.wrap{flex-wrap:wrap}
   .controls label{display:inline-flex;align-items:center;gap:6px;line-height:1.3}
@@ -16,10 +16,8 @@
   input[type="number"]{width:60px}
   .meta{font-size:12px;color:#555;margin:4px 0 8px}
 
-  /* 래퍼: 가로는 컨테이너에 맞춤, 잘림 방지 위해 visible */
-  /* 래퍼: 다음 요소와 간격 최소화 */
-  .sched{margin:12px 0; width:100%; position:relative; overflow:visible; padding-top:0} /* padding-top은 JS가 설정 */
-  /* 보드: 폭은 JS가 inline으로 지정. 최소폭, 스케일 기준만 유지 */
+  /* 시간표 래퍼/보드 */
+  .sched{margin:12px 0;width:100%;position:relative;overflow:visible;padding-top:0}
   .board{position:relative;border:1px solid #999;transform-origin:top left}
   .gutter{position:absolute;left:0;top:40px;width:80px;bottom:0;border-right:1px solid #ccc;background:#fafafa}
   .col{position:absolute;top:40px;bottom:0;width:160px;border-left:1px solid #eee}
@@ -34,51 +32,56 @@
   .list li{margin:2px 0}
 
   /* 구분선+제목 */
-  .filter-title{
-    margin:10px 0 4px; padding-top:10px;
-    border-top:1px solid #e3e3e3; font-weight:700; font-size:14px; color:#333
-  }
+  .filter-title{margin:10px 0 4px;padding-top:10px;border-top:1px solid #e3e3e3;font-weight:700;font-size:14px;color:#333}
 
-  /* 필터 라벨 그리드: SBC 자동채움, SUBJ 3열 */
-  #sbcFilters, #subjFilters{display:grid;gap:8px}
-  #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
-  #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* ===== 필터 그리드: 네 영역 통일 ===== */
+  #sbcFilters, #subjFilters, #profFilters, #sectFilters{display:grid;gap:8px}
+  #sbcFilters, #subjFilters, #profFilters, #sectFilters{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
 
-  /* 커스텀 tri-state 체크박스 */
-  #sbcFilters label.sbcLab, #subjFilters label.sbcLab{
-    position:relative;display:inline-flex;align-items:center;gap:6px;padding-left:24px;cursor:pointer;user-select:none
+  /* ===== 커스텀 tri-state 체크박스: 네 영역 통일 ===== */
+  #sbcFilters label.sbcLab, #subjFilters label.sbcLab, #profFilters label.sbcLab, #sectFilters label.sbcLab{
+    position:relative;display:inline-flex;align-items:center;gap:6px;padding-left:24px;cursor:pointer;user-select:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:26px
   }
-  #sbcFilters label.sbcLab::before, #subjFilters label.sbcLab::before{
+  #sbcFilters label.sbcLab::before, #subjFilters label.sbcLab::before, #profFilters label.sbcLab::before, #sectFilters label.sbcLab::before{
     content:"";position:absolute;left:0;top:0;width:18px;height:18px;border:1px solid #666;border-radius:3px;background:#fff
   }
   #sbcFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after,
-  #subjFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after{
+  #subjFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after,
+  #profFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after,
+  #sectFilters label.sbcLab:has(input.sbcTri[data-state="must"])::after{
     content:"✓";position:absolute;left:3px;top:-2px;font-size:16px;line-height:16px
   }
   #sbcFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after,
-  #subjFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after{
+  #subjFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after,
+  #profFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after,
+  #sectFilters label.sbcLab:has(input.sbcTri[data-state="exclude"])::after{
     content:"–";position:absolute;left:6px;top:-2px;font-size:18px;line-height:16px
   }
   #sbcFilters label.sbcLab:has(input.sbcTri:focus),
-  #subjFilters label.sbcLab:has(input.sbcTri:focus){
+  #subjFilters label.sbcLab:has(input.sbcTri:focus),
+  #profFilters label.sbcLab:has(input.sbcTri:focus),
+  #sectFilters label.sbcLab:has(input.sbcTri:focus){
     outline:2px solid #2684ff;outline-offset:2px;border-radius:4px
   }
-  #sbcFilters input.sbcTri, #subjFilters input.sbcTri{
+  #sbcFilters input.sbcTri, #subjFilters input.sbcTri, #profFilters input.sbcTri, #sectFilters input.sbcTri{
     position:absolute;left:0;top:0;width:18px;height:18px;opacity:0;margin:0;padding:0
   }
 
-  /* 모바일: 가로 배치 유지 + 여유 간격 확대 */
+  /* 모바일 */
   @media (max-width: 768px){
     .controls{gap:14px 18px}
     input[type="number"]{width:64px}
-    #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
-    #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    #sbcFilters, #subjFilters, #profFilters, #sectFilters{
+      grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px
+    }
   }
   @media (max-width: 480px){
     h2{font-size:18px;margin:6px 0 10px}
     .controls{gap:14px 16px}
-    #sbcFilters{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
-    #subjFilters{grid-template-columns:repeat(3,minmax(0,1fr))}
+    #sbcFilters, #subjFilters, #profFilters, #sectFilters{
+      grid-template-columns:repeat(auto-fill,minmax(112px,1fr))
+    }
     input[type="checkbox"], input[type="number"], button{min-height:34px}
     button#refreshBtn{padding:6px 10px}
   }
@@ -86,53 +89,49 @@
   /* board 폰트 +2px */
   .board .hourlab{font-size:18px}
   .board .head{font-size:21px}
-  .board .block{font-size:20px; line-height:1.25}
+  .board .block{font-size:20px;line-height:1.25}
   .board .blk-title{font-size:20px}
   .board .blk-sub{font-size:18px}
 
-  /* 보드: 절대배치 */
-  .sched .board{position:absolute; left:0; top:0; border:1px solid #999; transform-origin:top left}
+  /* 보드 절대배치 */
+  .sched .board{position:absolute;left:0;top:0;border:1px solid #999;transform-origin:top left}
 
   /* 설명 리스트 간격 축소 */
-  .list{margin:4px 0 0; padding-left:16px}
-  @media (max-width: 768px){
-    .sched{ margin:14px 0 }
+  .list{margin:4px 0 0;padding-left:16px}
+  @media (max-width: 768px){ .sched{margin:14px 0} }
+
+  /* PC(>=1024px): 네 필터 동일 규칙 */
+  @media (min-width: 1024px){
+    #sbcFilters, #subjFilters, #profFilters, #sectFilters{
+      grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px
+    }
   }
 
-
+  /* 결과 4열 고정 + 퍼센티지 간격 */
   #output{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr)); /* 4열 고정 유지 */
-  column-gap: 2.5%;   /* 퍼센티지 간격 */
-  row-gap: 14px;      /* 세로 간격 약간 축소 */
-  align-items:start;
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    column-gap:2.5%;
+    row-gap:14px;
+    align-items:start;
   }
-.sched{ width:100%; margin:0; }
+  .sched{width:100%;margin:0}
 
-  /* 필터 제목 크기 */
-  .filter-title{ font-size:13px }
-
-  /* 필터 라벨 글자 */
-  #sbcFilters label.sbcLab,
-  #subjFilters label.sbcLab{ font-size:12px }
-
-  /* 일반 컨트롤 라벨 글자 */
-  .controls label{ font-size:12px }
-
-  /* 모바일에서 더 작게 */
+  /* 글자 크기 */
+  .filter-title{font-size:13px}
+  #sbcFilters label.sbcLab, #subjFilters label.sbcLab, #profFilters label.sbcLab, #sectFilters label.sbcLab{font-size:12px}
+  .controls label{font-size:12px}
   @media (max-width: 480px){
-    .filter-title{ font-size:12px }
-    #sbcFilters label.sbcLab,
-    #subjFilters label.sbcLab,
-    .controls label{ font-size:11px }
+    .filter-title{font-size:12px}
+    #sbcFilters label.sbcLab, #subjFilters label.sbcLab, #profFilters label.sbcLab, #sectFilters label.sbcLab,
+    .controls label{font-size:11px}
   }
 
-  /* 아코디언 토글 */
-.filter-title{cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none}
-.filter-title .arrow{transition:transform .15s}
-.filter-title[data-open="0"] .arrow{transform:rotate(-90deg)}
-/* 접힘 상태 패널 숨김 */
-.controls[data-collapsed="1"]{display:none !important}
+  /* 아코디언 */
+  .filter-title{cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
+  .filter-title .arrow{transition:transform .15s}
+  .filter-title[data-open="0"] .arrow{transform:rotate(-90deg)}
+  .controls[data-collapsed="1"]{display:none !important}
 </style>
 </head>
 <body>
@@ -386,7 +385,7 @@ function getSbcPrefs(){
 // Subject 필터 빌드
 function buildSubjFilters(courses){
   const div = document.getElementById("subjFilters");
-  const prev = getSubjPrefs();      // 기존 tri-state 상태 보존
+  const prev = getSubjPrefs();   // 이전 tri-state 상태
   div.innerHTML = "";
 
   if (!courses || courses.length===0){
@@ -395,17 +394,17 @@ function buildSubjFilters(courses){
     return;
   }
 
-  // 과목 태그 수집 → 상태우선(must→ignore→exclude) + 알파 정렬
-  const tagsSet = new Set(courses.map(c=>c.subject).filter(Boolean));
-  const tags = sortByStateThenAlpha([...tagsSet], tag=>"SUBJ:"+tag, prev);
+  // 알파벳 정렬만
+  const tags = [...new Set(courses.map(c=>c.subject).filter(Boolean))]
+                .sort((a,b)=>a.localeCompare(b));
 
-  // 렌더
+  // 렌더 + 상태 복원
   tags.forEach(tag=>{
-    const label=document.createElement("label");
-    label.className="sbcLab";
-    const cb=document.createElement("input");
-    cb.type="checkbox";
-    cb.className="sbcTri";
+    const label = document.createElement("label");
+    label.className = "sbcLab";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "sbcTri";
     cb.dataset.sbc = "SUBJ:"+tag;
     setTriState(cb, prev["SUBJ:"+tag] || "ignore");
     label.appendChild(cb);
@@ -413,7 +412,7 @@ function buildSubjFilters(courses){
     div.appendChild(label);
   });
 
-  // 위임 이벤트
+  // 이벤트 위임
   div.onclick = (e)=>{
     let cb = e.target.closest("input.sbcTri");
     if (!cb){
@@ -422,7 +421,7 @@ function buildSubjFilters(courses){
     }
     if (!cb || !div.contains(cb)) return;
     e.preventDefault(); e.stopPropagation();
-    cb.focus(); cycleTri(cb);  // 상태 순환 + 재계산
+    cb.focus(); cycleTri(cb);
   };
   div.onkeydown = (e)=>{
     let cb=null;
@@ -435,6 +434,7 @@ function buildSubjFilters(courses){
     if (e.key===" "||e.key==="Enter"){ e.preventDefault(); cycleTri(cb); }
   };
 }
+
 // 결과 기반 함수들을 아래처럼 교체
 
 function buildProfFilters(courses){
