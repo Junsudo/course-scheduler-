@@ -99,27 +99,15 @@
     .sched{ margin:14px 0 }
   }
 
-  /* PC(>=1024px): SUBJ를 가로로 자동 채움 */
-  @media (min-width: 1024px){
-    #subjFilters{
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 10px;
-    }
-  }
 
-  /* PC(>=1024px): 시간표 4열 그리드 */
-  @media (min-width: 1024px){
-    #output{
-      display:grid;
-      grid-template-columns:repeat(4, minmax(0,1fr));
-      gap:20px 24px;
-      align-items:start;
-    }
-    .sched{
-      width:100%;
-      margin:0;
-    }
+  #output{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr)); /* 4열 고정 유지 */
+  column-gap: 2.5%;   /* 퍼센티지 간격 */
+  row-gap: 14px;      /* 세로 간격 약간 축소 */
+  align-items:start;
   }
+.sched{ width:100%; margin:0; }
 
   /* 필터 제목 크기 */
   .filter-title{ font-size:13px }
@@ -161,6 +149,7 @@
   <label><input type="checkbox" id="showClassNbr" checked> class_nbr</label>
   <label><input type="checkbox" id="showSBC" checked> SBC</label>
   <button id="refreshBtn" type="button">Refresh</button>
+  <label><input type="checkbox" id="showList" checked> 텍스트 설명</label>
   <span id="status" class="meta"></span>
 </div>
 
@@ -212,6 +201,17 @@ const DAY_INDEX = { MO:0, TU:1, WE:2, TH:3, FR:4 };
 // === 탐색 예산(ms) ===
 const ENUM_BUDGET_MS = 250;
 let _enumDeadline = 0;
+
+// 상태 우선순위 정렬
+const STATE_PRIO = { must:0, ignore:1, exclude:2 };
+function sortByStateThenAlpha(arr, keyer, prev){
+  return arr.slice().sort((a,b)=>{
+    const sa = STATE_PRIO[(prev[keyer(a)]||"ignore")] ?? 1;
+    const sb = STATE_PRIO[(prev[keyer(b)]||"ignore")] ?? 1;
+    if (sa !== sb) return sa - sb;
+    return String(keyer ? keyer(a) : a).localeCompare(String(keyer ? keyer(b) : b));
+  });
+}
 
 // [startMin, endMin) 구간의 BigInt 마스크 반환
 function segMask(startMin, endMin){
@@ -386,24 +386,34 @@ function getSbcPrefs(){
 // Subject 필터 빌드
 function buildSubjFilters(courses){
   const div = document.getElementById("subjFilters");
+  const prev = getSubjPrefs();      // 기존 tri-state 상태 보존
   div.innerHTML = "";
+
   if (!courses || courses.length===0){
     div.textContent = "Subject 필터 (CSV 로드 후 자동 생성)";
     div.onclick = null; div.onkeydown = null;
     return;
   }
-  const tags = [...new Set(courses.map(c=>c.subject).filter(Boolean))].sort();
 
+  // 과목 태그 수집 → 상태우선(must→ignore→exclude) + 알파 정렬
+  const tagsSet = new Set(courses.map(c=>c.subject).filter(Boolean));
+  const tags = sortByStateThenAlpha([...tagsSet], tag=>"SUBJ:"+tag, prev);
+
+  // 렌더
   tags.forEach(tag=>{
     const label=document.createElement("label");
     label.className="sbcLab";
     const cb=document.createElement("input");
-    cb.type="checkbox"; cb.className="sbcTri"; cb.dataset.sbc = "SUBJ:"+tag;
-    setTriState(cb,"ignore");
-    label.appendChild(cb); label.append(" "+tag);
+    cb.type="checkbox";
+    cb.className="sbcTri";
+    cb.dataset.sbc = "SUBJ:"+tag;
+    setTriState(cb, prev["SUBJ:"+tag] || "ignore");
+    label.appendChild(cb);
+    label.append(" "+tag);
     div.appendChild(label);
   });
 
+  // 위임 이벤트
   div.onclick = (e)=>{
     let cb = e.target.closest("input.sbcTri");
     if (!cb){
@@ -412,7 +422,7 @@ function buildSubjFilters(courses){
     }
     if (!cb || !div.contains(cb)) return;
     e.preventDefault(); e.stopPropagation();
-    cb.focus(); cycleTri(cb);
+    cb.focus(); cycleTri(cb);  // 상태 순환 + 재계산
   };
   div.onkeydown = (e)=>{
     let cb=null;
@@ -425,23 +435,23 @@ function buildSubjFilters(courses){
     if (e.key===" "||e.key==="Enter"){ e.preventDefault(); cycleTri(cb); }
   };
 }
+// 결과 기반 함수들을 아래처럼 교체
 
-// 현재 결과 집합에서 교수/섹션 필터 생성
-function buildProfFiltersFromResults(results){
+function buildProfFilters(courses){
   const div = document.getElementById("profFilters");
   const prev = getProfPrefs();
   div.innerHTML = "";
 
-  if (!results || results.length===0){
-    div.textContent = "교수 필터 (스케줄 생성 후 표시)";
+  if (!courses || courses.length===0){
+    div.textContent = "교수 필터 (CSV 로드 후 표시)";
     div.onclick = null; div.onkeydown = null;
     return;
   }
   const set = new Set();
-  results.forEach(r=>r.sel.forEach(c=>{ if (c.prof) set.add(c.prof); }));
-  const arr = [...set].sort((a,b)=>a.localeCompare(b));
+  courses.forEach(c => { if (c.prof) set.add(c.prof); });
+  const names = sortByStateThenAlpha([...set], n => "PROF:"+n, prev);
 
-  arr.forEach(name=>{
+  names.forEach(name=>{
     const lab=document.createElement("label");
     lab.className="sbcLab";
     const cb=document.createElement("input");
@@ -451,7 +461,6 @@ function buildProfFiltersFromResults(results){
     div.appendChild(lab);
   });
 
-  // tri-state 위임
   div.onclick = (e)=>{
     let cb = e.target.closest("input.sbcTri") || (e.target.closest && e.target.closest("label.sbcLab")?.querySelector("input.sbcTri"));
     if (!cb || !div.contains(cb)) return;
@@ -465,21 +474,20 @@ function buildProfFiltersFromResults(results){
   };
 }
 
-function buildSectFiltersFromResults(results){
+function buildSectFilters(courses){
   const div = document.getElementById("sectFilters");
   const prev = getSectPrefs();
   div.innerHTML = "";
 
-  if (!results || results.length===0){
-    div.textContent = "과목(섹션) 필터 (스케줄 생성 후 표시)";
+  if (!courses || courses.length===0){
+    div.textContent = "과목(섹션) 필터 (CSV 로드 후 표시)";
     div.onclick = null; div.onkeydown = null;
     return;
   }
-  const set = new Set();
-  results.forEach(r=>r.sel.forEach(c=>set.add(c.code)));
-  const arr = [...set].sort((a,b)=>a.localeCompare(b));
+  const set = new Set(courses.map(c=>c.code));
+  const codes = sortByStateThenAlpha([...set], code => "SECT:"+code, prev);
 
-  arr.forEach(code=>{
+  codes.forEach(code=>{
     const lab=document.createElement("label");
     lab.className="sbcLab";
     const cb=document.createElement("input");
@@ -514,6 +522,28 @@ function getSectPrefs(){
   return prefs;
 }
 
+function fitBoards(){
+  const LOGICAL_W = W_GUTTER + COL_W * DAYS.length;
+  const LOGICAL_H = (END_MIN - START_MIN) * PX_PER_MIN + HEAD_H;
+  const BOARD_BORDER = 2;
+
+  document.querySelectorAll(".sched").forEach(wrap=>{
+    const board = wrap.querySelector(".board");
+    if (!board) return;
+
+    const wrapW = wrap.clientWidth || LOGICAL_W;
+    const avail = Math.max(0, wrapW);
+
+    // 논리폭 기준 스케일
+    const scale = Math.min(1, (avail - 1) / (LOGICAL_W + BOARD_BORDER));
+    board.style.transform = `scale(${scale})`;
+
+    // 논리높이로 고정 padding-top 확보 → 리스트가 겹치지 않음
+    const scaledH = Math.ceil((LOGICAL_H + BOARD_BORDER) * scale);
+    wrap.style.paddingTop = scaledH + "px";
+    wrap.style.height = "";
+  });
+}
 
 // Subject 체크박스 상태 반환
 function getSubjPrefs(){
@@ -838,16 +868,23 @@ function renderResultsChunked(results){
   function chunk(){
     const end = Math.min(i + BATCH, results.length);
     const parts = [];
+    const showList = document.getElementById("showList")?.checked; // ← 추가
+
     for (; i < end; i++) {
       const r = results[i];
       parts.push(`<div class="sched"><div><strong>스케줄 ${i+1}</strong> | 총학점 ${r.total}</div>`);
       parts.push(renderBoard(r.sel));
-      const lines = r.sel.map(formatCourseLine);
-      if (lines.length) parts.push(`<ul class="list">`+lines.map(x=>`<li>${x}</li>`).join("")+`</ul>`);
+      if (showList){                                   // ← 조건부 표시
+        const lines = r.sel.map(formatCourseLine);
+        if (lines.length) parts.push(`<ul class="list">`+lines.map(x=>`<li>${x}</li>`).join("")+`</ul>`);
+      }
       parts.push(`</div>`);
     }
     outEl.insertAdjacentHTML("beforeend", parts.join(""));
+
     fitBoards();
+    requestAnimationFrame(()=>fitBoards());
+
     if (i < results.length) requestAnimationFrame(chunk);
   }
   requestAnimationFrame(chunk);
@@ -883,8 +920,8 @@ function applyAndEnumerate(allCourses){
   const results = enumerateSchedules(allCourses, maxShow);
 
   // 현재 결과 기반 교수/섹션 필터 재구성
-  buildProfFiltersFromResults(results);
-  buildSectFiltersFromResults(results);
+  buildProfFilters(allCourses);
+  buildSectFilters(allCourses);
 
   document.getElementById("status").textContent =
     `생성: ${results.length}개 (최대 ${maxShow})`;
@@ -904,7 +941,19 @@ function applyAndEnumerate(allCourses){
 
   // CSV 전 필터 틀
   buildSbcFilters([]);
+  buildSubjFilters([]);
+  buildProfFilters([]);   // ← 추가
+  buildSectFilters([]);   // ← 추가
   if (typeof buildSubjFilters === "function") buildSubjFilters([]);
+
+  // 반응형 안정화: 컨테이너 크기/자식 변화 감지
+  const outputEl = document.getElementById("output");
+  if ("ResizeObserver" in window){
+    const ro = new ResizeObserver(()=>{ fitBoards(); });
+    ro.observe(outputEl);
+  }
+  const mo = new MutationObserver(()=>{ requestAnimationFrame(()=>fitBoards()); });
+  mo.observe(outputEl, { childList: true });
 
   // CSV 로드
   const fileInput = document.getElementById("csvFile");
@@ -917,14 +966,17 @@ function applyAndEnumerate(allCourses){
         const rows = parseCSV(e.target.result);
         allCourses = buildCourses(rows);
         buildSbcFilters(allCourses);
-        if (typeof buildSubjFilters === "function") buildSubjFilters(allCourses);
+        buildSubjFilters(allCourses);
+        buildProfFilters(allCourses);   // ← 추가
+        buildSectFilters(allCourses);   // ← 추가
         document.getElementById("status").textContent = `로드됨: ${allCourses.length}개 섹션`;
         applyAndEnumerate(allCourses);
-        fitBoards();
+        // enumerate → 렌더 직후 한 프레임 뒤 보정
+        requestAnimationFrame(()=>fitBoards());
       } catch(err) {
         document.getElementById("status").textContent = "CSV 파싱 실패";
         document.getElementById("output").innerHTML = `<div class="sched">${renderBoard([])}</div>`;
-        fitBoards();
+        requestAnimationFrame(()=>fitBoards());
       }
     };
     fr.readAsText(f, "utf-8");
@@ -934,36 +986,17 @@ function applyAndEnumerate(allCourses){
   document.getElementById("refreshBtn").addEventListener("click", () => applyAndEnumerate(allCourses));
   const af = document.getElementById("avoidFriday");
   if (af) af.addEventListener("change", () => applyAndEnumerate(allCourses));
-  window.addEventListener("resize", fitBoards);
 
-// 아코디언 바인딩
-bindAccordion("sbcTitle","sbcFilters");
-bindAccordion("subjTitle","subjFilters");
-bindAccordion("profTitle","profFilters");
-bindAccordion("sectTitle","sectFilters");
+  // 아코디언: 토글 직후와 다음 프레임에 재스케일
+  bindAccordion("sbcTitle","sbcFilters");
+  bindAccordion("subjTitle","subjFilters");
+  bindAccordion("profTitle","profFilters");
+  bindAccordion("sectTitle","sectFilters");
 
-// 화면 너비에 맞춰 보드를 축소해 좌우 스크롤 제거
-function fitBoards(){
-const LOGICAL_W = W_GUTTER + COL_W * DAYS.length;
-const BOARD_BORDER = 2;
+  // 리사이즈
+  window.addEventListener("resize", ()=>{ fitBoards(); requestAnimationFrame(()=>fitBoards()); });
+})();
 
-document.querySelectorAll(".sched").forEach(wrap=>{
-const board = wrap.querySelector(".board");
-if (!board) return;
-const wrapW = wrap.clientWidth || LOGICAL_W;
-const PAD = 0;
-const avail = Math.max(0, wrapW - PAD*2);
-
-const scale = Math.min(1, (avail - 1) / (LOGICAL_W + BOARD_BORDER));
-board.style.transform = `scale(${scale})`;
-
-const scaledH = Math.ceil(board.offsetHeight * scale);
-wrap.style.paddingTop = scaledH + "px";
-wrap.style.height = "";
-});
-}
-
-window.addEventListener("resize", fitBoards);})();
 </script>
 </body>
 </html>
