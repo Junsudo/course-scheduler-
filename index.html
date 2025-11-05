@@ -139,11 +139,12 @@
     .controls label{ font-size:11px }
   }
 
-  /* 아코디언 */
-  .filter-title{ cursor:pointer; user-select:none }
-  .filter-title .arrow{ display:inline-block; margin-left:6px; transition:transform .15s }
-  .filter-title[data-open="0"] .arrow{ transform:rotate(-90deg) }
-  .collapsed{ display:none !important }
+  /* 아코디언 토글 */
+.filter-title{cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none}
+.filter-title .arrow{transition:transform .15s}
+.filter-title[data-open="0"] .arrow{transform:rotate(-90deg)}
+/* 접힘 상태 패널 숨김 */
+.controls[data-collapsed="1"]{display:none !important}
 </style>
 </head>
 <body>
@@ -176,6 +177,14 @@
 <!-- Row 4: Subject filters -->
 <div class="filter-title" id="subjTitle" data-open="1">Subject 필터 <span class="arrow">▾</span></div>
 <div class="controls wrap" id="subjFilters"></div>
+
+<!-- Row 5: Professor filters -->
+<div class="filter-title" id="profTitle" data-open="1">교수 필터 <span class="arrow">▾</span></div>
+<div class="controls wrap" id="profFilters"></div>
+
+<!-- Row 6: Section filters -->
+<div class="filter-title" id="sectTitle" data-open="1">과목(섹션) 필터 <span class="arrow">▾</span></div>
+<div class="controls wrap" id="sectFilters"></div>
 
 <div id="output"></div>
 
@@ -417,6 +426,95 @@ function buildSubjFilters(courses){
   };
 }
 
+// 현재 결과 집합에서 교수/섹션 필터 생성
+function buildProfFiltersFromResults(results){
+  const div = document.getElementById("profFilters");
+  const prev = getProfPrefs();
+  div.innerHTML = "";
+
+  if (!results || results.length===0){
+    div.textContent = "교수 필터 (스케줄 생성 후 표시)";
+    div.onclick = null; div.onkeydown = null;
+    return;
+  }
+  const set = new Set();
+  results.forEach(r=>r.sel.forEach(c=>{ if (c.prof) set.add(c.prof); }));
+  const arr = [...set].sort((a,b)=>a.localeCompare(b));
+
+  arr.forEach(name=>{
+    const lab=document.createElement("label");
+    lab.className="sbcLab";
+    const cb=document.createElement("input");
+    cb.type="checkbox"; cb.className="sbcTri"; cb.dataset.sbc = "PROF:"+name;
+    setTriState(cb, prev["PROF:"+name] || "ignore");
+    lab.appendChild(cb); lab.append(" "+name);
+    div.appendChild(lab);
+  });
+
+  // tri-state 위임
+  div.onclick = (e)=>{
+    let cb = e.target.closest("input.sbcTri") || (e.target.closest && e.target.closest("label.sbcLab")?.querySelector("input.sbcTri"));
+    if (!cb || !div.contains(cb)) return;
+    e.preventDefault(); e.stopPropagation(); cb.focus(); cycleTri(cb);
+  };
+  div.onkeydown = (e)=>{
+    let cb = e.target.classList && e.target.classList.contains("sbcTri") ? e.target
+            : (e.target.closest && e.target.closest("label.sbcLab")?.querySelector("input.sbcTri"));
+    if (!cb) return;
+    if (e.key===" "||e.key==="Enter"){ e.preventDefault(); cycleTri(cb); }
+  };
+}
+
+function buildSectFiltersFromResults(results){
+  const div = document.getElementById("sectFilters");
+  const prev = getSectPrefs();
+  div.innerHTML = "";
+
+  if (!results || results.length===0){
+    div.textContent = "과목(섹션) 필터 (스케줄 생성 후 표시)";
+    div.onclick = null; div.onkeydown = null;
+    return;
+  }
+  const set = new Set();
+  results.forEach(r=>r.sel.forEach(c=>set.add(c.code)));
+  const arr = [...set].sort((a,b)=>a.localeCompare(b));
+
+  arr.forEach(code=>{
+    const lab=document.createElement("label");
+    lab.className="sbcLab";
+    const cb=document.createElement("input");
+    cb.type="checkbox"; cb.className="sbcTri"; cb.dataset.sbc = "SECT:"+code;
+    setTriState(cb, prev["SECT:"+code] || "ignore");
+    lab.appendChild(cb); lab.append(" "+code);
+    div.appendChild(lab);
+  });
+
+  div.onclick = (e)=>{
+    let cb = e.target.closest("input.sbcTri") || (e.target.closest && e.target.closest("label.sbcLab")?.querySelector("input.sbcTri"));
+    if (!cb || !div.contains(cb)) return;
+    e.preventDefault(); e.stopPropagation(); cb.focus(); cycleTri(cb);
+  };
+  div.onkeydown = (e)=>{
+    let cb = e.target.classList && e.target.classList.contains("sbcTri") ? e.target
+            : (e.target.closest && e.target.closest("label.sbcLab")?.querySelector("input.sbcTri"));
+    if (!cb) return;
+    if (e.key===" "||e.key==="Enter"){ e.preventDefault(); cycleTri(cb); }
+  };
+}
+
+// 현재 tri-state 상태 읽기
+function getProfPrefs(){
+  const prefs={};
+  document.querySelectorAll("#profFilters .sbcTri").forEach(cb=>{ prefs[cb.dataset.sbc]=cb.dataset.state; });
+  return prefs;
+}
+function getSectPrefs(){
+  const prefs={};
+  document.querySelectorAll("#sectFilters .sbcTri").forEach(cb=>{ prefs[cb.dataset.sbc]=cb.dataset.state; });
+  return prefs;
+}
+
+
 // Subject 체크박스 상태 반환
 function getSubjPrefs(){
   const prefs={};
@@ -485,19 +583,22 @@ function buildSbcFilters(courses){
 }
 
 // 아코디언 바인딩
-function bindCollapsible(titleId, contentId){
-  const title = document.getElementById(titleId);
-  const content = document.getElementById(contentId);
-  if (!title || !content) return;
-  // 초기 상태 반영
-  content.classList.toggle("collapsed", title.dataset.open === "0");
-  title.addEventListener("click", ()=>{
-    const open = title.dataset.open !== "0";
-    title.dataset.open = open ? "0" : "1";
-    content.classList.toggle("collapsed", open);
+function bindAccordion(titleId, panelId){
+  const t = document.getElementById(titleId);
+  const p = document.getElementById(panelId);
+  if (!t || !p) return;
+  const apply = () => {
+    const open = t.dataset.open === "1";
+    p.dataset.collapsed = open ? "0" : "1";
+  };
+  t.addEventListener("click", () => {
+    t.dataset.open = t.dataset.open === "1" ? "0" : "1";
+    apply();
     fitBoards();
   });
+  apply();
 }
+
 
 // 시간 필터
 let filterStart=START_MIN, filterEnd=END_MIN;
@@ -526,23 +627,34 @@ function buildByBase(items0){
 
 // 일정 조합 열거
 function enumerateSchedules(courses, maxOut){
-  const sbcPrefs = getSbcPrefs();
+  const sbcPrefs  = getSbcPrefs();
   const subjPrefs = getSubjPrefs();
+  const profPrefs = getProfPrefs();
+  const sectPrefs = getSectPrefs();
   const friOff = document.getElementById("avoidFriday").checked;
 
   // exclude 사전 제거
   const filtered = courses.filter(c=>{
+    // SBC exclude
     for(const tag of c.sbcList){ if(sbcPrefs[tag]==="exclude") return false; }
+    // SUBJECT exclude
     const subjKey = "SUBJ:"+c.subject;
     if (subjPrefs[subjKey]==="exclude") return false;
+    // PROF exclude
+    if (c.prof && profPrefs["PROF:"+c.prof]==="exclude") return false;
+    // SECTION exclude
+    if (sectPrefs["SECT:"+c.code]==="exclude") return false;
+    // 금요일 제외
     if (friOff && c.daylist && c.daylist.includes("FR")) return false;
     return true;
   });
 
   // must 집합
-  const mustSbc = Object.entries(sbcPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
+  const mustSbc  = Object.entries(sbcPrefs ).filter(([t,st])=>st==="must").map(([t])=>t);
   const mustSubj = Object.entries(subjPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
-  const mustAll = [...mustSbc, ...mustSubj];
+  const mustProf = Object.entries(profPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
+  const mustSect = Object.entries(sectPrefs).filter(([t,st])=>st==="must").map(([t])=>t);
+  const mustAll  = [...mustSbc, ...mustSubj, ...mustProf, ...mustSect];
 
   // 아이템 전처리
   const items0 = filtered.map(c => ({ c, dm: courseDayMasks(c) }));
@@ -552,8 +664,14 @@ function enumerateSchedules(courses, maxOut){
 
   // must 포함 과목 우선
   const items = items0.slice().sort((A,B)=>{
-    const aHas = A.c.sbcList.some(t=>mustSbc.includes(t)) || mustSubj.includes("SUBJ:"+A.c.subject);
-    const bHas = B.c.sbcList.some(t=>mustSbc.includes(t)) || mustSubj.includes("SUBJ:"+B.c.subject);
+    const aHas = A.c.sbcList.some(t=>mustSbc.includes(t))
+              || mustSubj.includes("SUBJ:"+A.c.subject)
+              || (A.c.prof && mustProf.includes("PROF:"+A.c.prof))
+              || mustSect.includes("SECT:"+A.c.code);
+    const bHas = B.c.sbcList.some(t=>mustSbc.includes(t))
+              || mustSubj.includes("SUBJ:"+B.c.subject)
+              || (B.c.prof && mustProf.includes("PROF:"+B.c.prof))
+              || mustSect.includes("SECT:"+B.c.code);
     if (aHas!==bHas) return bHas - aHas;
     return A.c.code.localeCompare(B.c.code);
   });
@@ -562,20 +680,22 @@ function enumerateSchedules(courses, maxOut){
   const remMaxCred = new Array(items.length+1).fill(0);
   for (let i = items.length - 1; i >= 0; i--) remMaxCred[i] = remMaxCred[i+1] + (items[i].c.cred||0);
 
-  // suffix 가능성
+  // suffix 가능성: mustAll을 채울 수 있는지 사전 검사
   const suffixCan = new Array(items.length+1);
   suffixCan[items.length] = new Set();
   for (let i = items.length - 1; i >= 0; i--) {
     const s = new Set(suffixCan[i+1]);
     for (const t of items[i].c.sbcList) if (mustSbc.includes(t)) s.add(t);
-    const sk = "SUBJ:"+items[i].c.subject;
-    if (mustSubj.includes(sk)) s.add(sk);
+    const sk = "SUBJ:"+items[i].c.subject; if (mustSubj.includes(sk)) s.add(sk);
+    const pk = items[i].c.prof ? "PROF:"+items[i].c.prof : null; if (pk && mustProf.includes(pk)) s.add(pk);
+    const ck = "SECT:"+items[i].c.code; if (mustSect.includes(ck)) s.add(ck);
     suffixCan[i] = s;
   }
   const suffixAll = suffixCan[0];
   for (const t of mustAll) if (!suffixAll.has(t)) return [];
 
   const res=[]; const seen=new Set();
+
   function sigOf(sel){
     const parts = sel.map(x=>{
       const c=x.c; const d=(c.daylist||[]).join("");
@@ -591,89 +711,57 @@ function enumerateSchedules(courses, maxOut){
 
   function addOcc(dayOcc, dm){ const out=dayOcc.slice(); for(let di=0;di<5;di++) out[di]|=dm[di]; return out; }
 
-  //  번들 선택: it를 포함하는 파트 묶음 선택
-  //  번들 선택: it를 포함하는 파트 묶음 선택 (분반 숫자 매칭 우선)
-function chooseBundle(it, sel, dayOcc){
-  // 분반키 추출: ".R91" ".L91" ".91" → "91"
-  const secKeyOf = (code)=>{
-    const m = String(code).match(/\.(?:[A-Z])?(\d+)/i);
-    return m ? m[1] : null;
-  };
+  // 분반 숫자 매칭 우선 chooseBundle (이미 교체했으면 그대로 둬도 됨)
+  function chooseBundle(it, sel, dayOcc){
+    const secKeyOf = (code)=>{ const m=String(code).match(/\.(?:[A-Z])?(\d+)/i); return m?m[1]:null; };
+    const base  = it.c.base;
+    const group = byBase.get(base) || { LEC:[], REC:[], LAB:[] };
+    const have = {
+      LEC: sel.some(x=>x.c.base===base && partOf(x.c)==="LEC"),
+      REC: sel.some(x=>x.c.base===base && partOf(x.c)==="REC"),
+      LAB: sel.some(x=>x.c.base===base && partOf(x.c)==="LAB"),
+    };
+    const exists = { LEC: group.LEC.length>0, REC: group.REC.length>0, LAB: group.LAB.length>0 };
+    const p = partOf(it.c);
+    if (have[p]) return null;
 
-  const base  = it.c.base;
-  const group = byBase.get(base) || { LEC:[], REC:[], LAB:[] };
+    const need = { LEC:false, REC:false, LAB:false };
+    if (p==="LEC"){ if (exists.REC&&!have.REC) need.REC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
+    else if (p==="REC"){ if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.LAB&&!have.LAB) need.LAB=true; }
+    else { if (!have.LEC&&exists.LEC) need.LEC=true; if (exists.REC&&!have.REC) need.REC=true; }
 
-  const have = {
-    LEC: sel.some(x=>x.c.base===base && partOf(x.c)==="LEC"),
-    REC: sel.some(x=>x.c.base===base && partOf(x.c)==="REC"),
-    LAB: sel.some(x=>x.c.base===base && partOf(x.c)==="LAB"),
-  };
-  const exists = { LEC: group.LEC.length>0, REC: group.REC.length>0, LAB: group.LAB.length>0 };
+    const key = secKeyOf(it.c.code);
+    const pref = (arr)=> arr.filter(x=>secKeyOf(x.c.code)===key);
+    const lecChoices = need.LEC ? (pref(group.LEC).length ? pref(group.LEC) : group.LEC) : [null];
+    const recChoices = need.REC ? (pref(group.REC).length ? pref(group.REC) : group.REC) : [null];
+    const labChoices = need.LAB ? (pref(group.LAB).length ? pref(group.LAB) : group.LAB) : [null];
 
-  const p = partOf(it.c);
-  // 동일 과목 동일 파트 중복 금지
-  if (have[p]) return null;
+    for (const lec of lecChoices){
+      for (const rec of recChoices){
+        for (const lab of labChoices){
+          const bundle=[it]; if (lec) bundle.push(lec); if (rec) bundle.push(rec); if (lab) bundle.push(lab);
+          const uniq=[]; const seenPtr=new Set(sel);
+          for (const b of bundle) if (!seenPtr.has(b)) uniq.push(b);
+          if (!uniq.length) continue;
 
-  // 현재 선택 항목의 분반키
-  const key = secKeyOf(it.c.code);
-
-  // 필요 파트 산정
-  const need = { LEC:false, REC:false, LAB:false };
-  if (p==="LEC"){
-    if (exists.REC && !have.REC) need.REC = true;
-    if (exists.LAB && !have.LAB) need.LAB = true;
-  } else if (p==="REC"){
-    if (!have.LEC && exists.LEC) need.LEC = true;
-    if (exists.LAB && !have.LAB) need.LAB = true;
-  } else { // LAB
-    if (!have.LEC && exists.LEC) need.LEC = true;
-    if (exists.REC && !have.REC) need.REC = true;
-  }
-
-  // 분반키 우선 매칭 선택지
-  const pref = (arr)=> arr.filter(x=>secKeyOf(x.c.code)===key);
-  const lecChoices = need.LEC ? (pref(group.LEC).length ? pref(group.LEC) : group.LEC) : [null];
-  const recChoices = need.REC ? (pref(group.REC).length ? pref(group.REC) : group.REC) : [null];
-  const labChoices = need.LAB ? (pref(group.LAB).length ? pref(group.LAB) : group.LAB) : [null];
-
-  for (const lec of lecChoices){
-    for (const rec of recChoices){
-      for (const lab of labChoices){
-        const bundle = [it];
-        if (lec) bundle.push(lec);
-        if (rec) bundle.push(rec);
-        if (lab) bundle.push(lab);
-
-        // 중복 제거
-        const uniq = [];
-        const seenPtr = new Set(sel);
-        for (const b of bundle) if (!seenPtr.has(b)) uniq.push(b);
-        if (!uniq.length) continue;
-
-        // 시간/겹침 검사
-        let ok = true;
-        const dmBundle = [0n,0n,0n,0n,0n];
-        for (const x of uniq){
-          const cc = x.c;
-          if (cc.start!=null && cc.end!=null){
-            if (cc.start < filterStart || cc.end > filterEnd){ ok=false; break; }
-            if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
+          let ok=true; let dmBundle=[0n,0n,0n,0n,0n];
+          for (const x of uniq){
+            const cc=x.c;
+            if (cc.start!=null&&cc.end!=null){
+              if (cc.start<filterStart||cc.end>filterEnd){ ok=false; break; }
+              if (document.getElementById("avoidLunch").checked && overlapsLunch(cc)){ ok=false; break; }
+            }
+            for(let di=0;di<5;di++){ if ((dayOcc[di] & x.dm[di])!==0n){ ok=false; break; } }
+            if (!ok) break;
+            for(let di=0;di<5;di++) dmBundle[di]|=x.dm[di];
           }
-          for (let di=0; di<5; di++){
-            if ((dayOcc[di] & x.dm[di]) !== 0n){ ok=false; break; }
-          }
-          if (!ok) break;
-          for (let di=0; di<5; di++) dmBundle[di] |= x.dm[di];
+          if (!ok) continue;
+          return { uniq, dmBundle };
         }
-        if (!ok) continue;
-
-        return { uniq, dmBundle };
       }
     }
+    return null;
   }
-  return null;
-}
-
 
   function dfs(i, sel, dayOcc, sumCred, hit){
     if (res.length>=maxOut) return;
@@ -698,6 +786,7 @@ function chooseBundle(it, sel, dayOcc){
 
     const it=items[i];
 
+    // take
     const chosen=chooseBundle(it, sel, dayOcc);
     if (chosen){
       const newOcc=addOcc(dayOcc, chosen.dmBundle);
@@ -707,16 +796,21 @@ function chooseBundle(it, sel, dayOcc){
       for (const x of chosen.uniq){
         for (const t of x.c.sbcList) if (mustSbc.includes(t)) newHit.add(t);
         const sk="SUBJ:"+x.c.subject; if (mustSubj.includes(sk)) newHit.add(sk);
+        const pk=x.c.prof ? "PROF:"+x.c.prof : null; if (pk && mustProf.includes(pk)) newHit.add(pk);
+        const ck="SECT:"+x.c.code; if (mustSect.includes(ck)) newHit.add(ck);
       }
       dfs(i+1,newSel,newOcc,newCred,newHit);
       if (res.length>=maxOut) return;
     }
+
+    // skip
     dfs(i+1, sel, dayOcc, sumCred, hit);
   }
 
   dfs(0, [], [0n,0n,0n,0n,0n], 0, new Set());
   return res;
 }
+
 
 // 결과 렌더링
 function formatCourseLine(c){
@@ -788,6 +882,10 @@ function applyAndEnumerate(allCourses){
 
   const results = enumerateSchedules(allCourses, maxShow);
 
+  // 현재 결과 기반 교수/섹션 필터 재구성
+  buildProfFiltersFromResults(results);
+  buildSectFiltersFromResults(results);
+
   document.getElementById("status").textContent =
     `생성: ${results.length}개 (최대 ${maxShow})`;
   if (results.length === 0) {
@@ -838,10 +936,11 @@ function applyAndEnumerate(allCourses){
   if (af) af.addEventListener("change", () => applyAndEnumerate(allCourses));
   window.addEventListener("resize", fitBoards);
 
-  // 아코디언 바인딩
-  bindCollapsible("sbcTitle","sbcFilters");
-bindCollapsible("subjTitle","subjFilters");
-})();
+// 아코디언 바인딩
+bindAccordion("sbcTitle","sbcFilters");
+bindAccordion("subjTitle","subjFilters");
+bindAccordion("profTitle","profFilters");
+bindAccordion("sectTitle","sectFilters");
 
 // 화면 너비에 맞춰 보드를 축소해 좌우 스크롤 제거
 function fitBoards(){
@@ -864,7 +963,7 @@ wrap.style.height = "";
 });
 }
 
-window.addEventListener("resize", fitBoards);
+window.addEventListener("resize", fitBoards);})();
 </script>
 </body>
 </html>
